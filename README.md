@@ -1,6 +1,6 @@
-# Window Smash
+# Window Smash Duel
 
-Kick a football through the neighbours' windows. Plain HTML/CSS/JS with three.js r128, with no build step and no external requests (Poki-ready).
+A copy of Window Smash exploring a VS mode: race a bot to break the most windows before the clock runs out. Plain HTML/CSS/JS with three.js r128, with no build step and no external requests (Poki-ready).
 
 ## Run
 
@@ -20,13 +20,16 @@ Kick a football through the neighbours' windows. Plain HTML/CSS/JS with three.js
 | `js/ball.js` | Football texture/material, ball spawn and removal |
 | `js/fx.js` | Particles, shatter, juice (freeze, slow-mo, shake, pops) |
 | `js/audio.js` | Web Audio sfx |
-| `js/levels.js` | `LV` level data, `buildHouse`, `buildStand`, `makeRoom`, `loadLevel` |
-| `js/mech.js` | Level mechanics: solid obstacles (ball bounces off boxes), movers, sliding board, roller shutters, wooden boards, wired glass, hedges, porch skylight, wind |
-| `js/input.js` | Live swipe (default) plus the old aim/shape controls (hidden) |
-| `js/game.js` | Win/fail, ball physics, main loop |
-| `js/ui.js` | Tuning panel, buttons, keyboard, startup, `window.__ws` debug hook |
+| `js/levels.js` | `LV` arena data, `buildFacade` (wall of windows + round clock), `buildStand`, `loadLevel`, dev sandbox |
+| `js/mech.js` | Mechanics: solid obstacles, roller shutters (looping or game-driven), wooden boards, wired glass, sliding board, wind, windmills, gap wheel, free-standing panes, carousel, spin boards / flip panels, gantry |
+| `js/glare.js` | Glass reflections and glints |
+| `js/input.js` | Live swipe (default) plus the old aim/shape controls (hidden); `solveArc` launch maths shared with the bot |
+| `js/vs.js` | VS round: scores, timer, whack-a-mole window rotation, gold prize window, sudden death, result |
+| `js/bot.js` | Bot opponent: figure, think / wind-up / kick loop, aim error and difficulty |
+| `js/game.js` | Ball physics (`crossPlane`, `stepBall`), main loop |
+| `js/ui.js` | Tuning panel (incl. bot presets and sliders), buttons, keyboard, startup, `window.__ws` debug hook |
 
-Scripts are plain (non-module) and share globals, so the load order in `index.html` matters. Press `M` to cycle control modes. The tuning panel (⚙) has a **Sandbox** button: an empty yard with unlimited balls for testing kick feel (`R` reloads it).
+Scripts are plain (non-module) and share globals, so the load order in `index.html` matters. Press `M` to cycle control modes. The tuning panel (⚙) has bot difficulty presets (Easy / Normal / Hard) and sliders for the bot, round length and open-window count, plus a **Sandbox** button: an empty yard with unlimited balls for testing kick feel (`R` reloads it).
 
 ## Build
 

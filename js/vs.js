@@ -1,0 +1,84 @@
+'use strict';
+/* ---------- VS round: race the bot; whoever has more points when the clock runs out wins ----------
+   Every facade window sits behind a game-driven roller shutter. S.live of them are open at a time. A broken window is
+   shuttered 0.7 s later and re-glazed behind the shutter while another one opens elsewhere (whack-a-mole), so the wall stays
+   fresh to the end. Now and then one extra window opens with gold glass (LVL.prize.pts points) for a few seconds.
+   Breaks are credited by the ball's owner ('p' or 'bot'); the frame takes the breaker's colour and keeps it while shut.
+   A draw at the bell goes to sudden death: the next point wins. */
+const TEAM={p:0x3f8fe0,bot:0xe2513f},FRAME=0xfffaf0,GOLD=0xffc53a;
+const VS={on:false,started:false,over:false,sudden:false,t:0,len:60,score:{p:0,bot:0},prize:null,prizeT:0,gap:0,recent:[],tickS:-1};
+/* open, intact and not shuttered: a live target */
+function isOpen(p){return !!p&&!p.broken&&!p.locked&&(p.shutF===undefined||p.shutF<.15)}
+const prizeGap=()=>rnd(LVL.prize.every[0],LVL.prize.every[1]);
+
+function vsStart(L){
+  Object.assign(VS,{on:true,started:false,over:false,sudden:false,t:0,len:S.round,score:{p:0,bot:0},prize:null,prizeT:L.prize?L.prize.first:1e9,gap:0,recent:[],tickS:-1});
+  panes.forEach(p=>{if(!p.vs)return;p.onShut=reglaze;p.hp0=p.hp;p.armor0=p.armor});
+  drawScore();if(clock)clock.set(1,false,false);
+  botReady();
+  later(.8,()=>{if(!VS.on)return;VS.started=true;botStart()}); /* the first shutters rolling up are the start signal */
+}
+function vsTick(dt){
+  if(!VS.on||!VS.started||VS.over)return;
+  VS.t+=dt;const left=Math.max(0,VS.len-VS.t);
+  if(clock)clock.set(left/VS.len,left<=10,VS.sudden);
+  const s=Math.ceil(left);if(left>0&&s<=5&&s!==VS.tickS){VS.tickS=s;sfx.click()}
+  if(left<=0){if(VS.score.p!==VS.score.bot){endRound();return}if(!VS.sudden){VS.sudden=true;sfx.ding()}}
+  /* keep S.live ordinary windows up (a broken one still counts until its shutter starts down) */
+  VS.gap-=dt;
+  const up=panes.filter(p=>p.vs&&p.shutGoal===0&&!p.gold).length;
+  if(up<S.live&&VS.gap<=0&&openOne(false)){VS.gap=.12;if(!hintDone)updateHint()}
+  if(LVL.prize){const pr=VS.prize;
+    if(pr){if(!pr.broken){pr.goldT-=dt;if(pr.goldT<=0)closeWin(pr)}}
+    else{VS.prizeT-=dt;if(VS.prizeT<=0&&!openOne(true))VS.prizeT=1}}
+}
+/* Open one shut, re-glazed window: not one that just closed, and preferably away from the open ones. */
+function openOne(gold){
+  const ready=panes.filter(p=>p.vs&&p.shutGoal===1&&p.shutK>=1&&!p.broken);
+  let pool=ready.filter(p=>!VS.recent.includes(p));if(!pool.length)pool=ready;if(!pool.length)return false;
+  const open=panes.filter(q=>q.vs&&q.shutGoal===0),wt=pool.map(p=>.3+Math.min(6,...open.map(q=>Math.hypot(q.x-p.x,q.y-p.y))));
+  let r=Math.random()*wt.reduce((a,b)=>a+b,0),i=0;while(i<pool.length-1&&(r-=wt[i])>0)i++;
+  const p=pool[i];
+  p.gold=gold;p.mesh.material=gold?goldGlassMat:glassMat;tintFrame(p,gold?GOLD:FRAME);p.shutGoal=0;p.openAt=VS.t;
+  if(gold){p.goldT=LVL.prize.stay;VS.prize=p;sfx.ding()}
+  sfx.rattle(.3);glFresh(p);
+  return true;
+}
+function closeWin(p){
+  p.shutGoal=1;VS.recent.push(p);if(VS.recent.length>2)VS.recent.shift();
+  if(p===VS.prize){VS.prize=null;VS.prizeT=prizeGap()}
+}
+/* Shutter fully down: put fresh glass in (and the wire / boards back). The frame keeps the breaker's colour. */
+function reglaze(p){
+  if(p.broken){p.broken=false;p.mesh.visible=true;(p.extra||[]).forEach(m=>m.visible=true);p.tinks=0}
+  if(p.hp0>1&&p.hp!==p.hp0){p.hp=p.hp0;const c=p.crackCv;c.getContext('2d').clearRect(0,0,c.width,c.height);p.crackTex.needsUpdate=true}
+  if(p.armor0>0&&p.armor!==p.armor0){p.armor=p.armor0;p.boards.visible=true}
+  if(p.gold){p.gold=false;p.mesh.material=glassMat}
+}
+/* Called by smash() for every broken window. */
+function onBreak(p,b){
+  if(!VS.on||!p.vs)return;
+  const who=b.owner==='bot'?'bot':'p';
+  if(!VS.over){VS.score[who]+=p.gold&&LVL.prize?LVL.prize.pts:1;drawScore(who)}
+  tintFrame(p,TEAM[who]);
+  if(p===VS.prize){VS.prize=null;VS.prizeT=prizeGap()}
+  if(!hintDone)updateHint();
+  later(.7,()=>{if(VS.on&&p.shutGoal===0)closeWin(p)});
+  if(VS.sudden&&VS.score.p!==VS.score.bot)later(.35,endRound);
+}
+function endRound(){
+  if(VS.over||!VS.on)return;VS.over=true;won=true;winAt=performance.now();botStop();
+  if(drag){drag=null;hidePreview()}$('hint').hidden=true;
+  if(clock)clock.set(0,true,false);sfx.boom();
+  panes.forEach((p,i)=>{if(p.vs&&p.shutGoal===0)later(.2+i*.04,()=>closeWin(p))});
+  const pw=VS.score.p>VS.score.bot;
+  later(.7,()=>{$('winWord').textContent=pw?'YOU WIN!':'BOT WINS';$('win').classList.toggle('lose',!pw);$('win').hidden=false;
+    if(pw){burstConfetti();sfx.win()}else sfx.lost();
+    later(.9,()=>{$('again').hidden=false})});
+}
+/* The two small scores at the top (blue = you, red = bot); the scorer's number bumps. Hidden outside VS. */
+function drawScore(who){
+  const on=VS.on&&!sandbox;$('score').hidden=!on;if(!on)return;
+  $('scP').textContent=VS.score.p;$('scB').textContent=VS.score.bot;
+  if(who){const e=$(who==='p'?'scP':'scB');e.classList.remove('bump');void e.offsetWidth;e.classList.add('bump')}
+}

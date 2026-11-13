@@ -17,13 +17,14 @@ const ballMat=(function(){
 const R=.3, ballGeo=new T.SphereGeometry(R,32,24);
 const shadowTex=canvasTex(64,64,(g,w,h)=>{const a=g.createRadialGradient(32,32,2,32,32,32);a.addColorStop(0,'rgba(20,30,20,.55)');a.addColorStop(1,'rgba(20,30,20,0)');g.fillStyle=a;g.fillRect(0,0,w,h)});
 
-/* ---------- balls ---------- */
-function spawnBall(){
-  if(ballsLeft<=0||won||cur||hopBusy())return;
-  const m=new T.Mesh(ballGeo,ballMat);m.castShadow=true;m.position.set(0,R,D);m.scale.setScalar(.01);scene.add(m);
-  const sh=new T.Mesh(new T.PlaneGeometry(1.2,1.2),new T.MeshBasicMaterial({map:shadowTex,transparent:true,depthWrite:false}));sh.rotation.x=-Math.PI/2;sh.position.set(0,.04,D);scene.add(sh);
-  cur={m,sh,p:m.position,v:new T.Vector3(),a:new T.Vector3(),state:'idle',age:0,born:0,spin:new T.Vector3(1,0,0)};
+/* ---------- balls ----------
+   Every ball carries its owner: 'p' (player) or 'bot'. A window broken by a ball scores for its owner. */
+function makeBall(x,z){
+  const m=new T.Mesh(ballGeo,ballMat);m.castShadow=true;m.position.set(x,R,z);m.scale.setScalar(.01);scene.add(m);
+  const sh=new T.Mesh(new T.PlaneGeometry(1.2,1.2),new T.MeshBasicMaterial({map:shadowTex,transparent:true,depthWrite:false}));sh.rotation.x=-Math.PI/2;sh.position.set(x,.04,z);scene.add(sh);
+  return{m,sh,p:m.position,v:new T.Vector3(),a:new T.Vector3(),state:'idle',age:0,born:0,spin:new T.Vector3(1,0,0),owner:'p'};
 }
+function spawnBall(){if(won||cur)return;cur=makeBall(0,D)}
 function removeBallMesh(b){scene.remove(b.m);scene.remove(b.sh);b.sh.material.dispose()}
 const plane=new T.Plane(new T.Vector3(0,0,1),-.16),ray=new T.Raycaster(),ndc=new T.Vector2(),hitV=new T.Vector3();
 const ZF=.16,G=16,BULGE=5;

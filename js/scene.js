@@ -12,7 +12,7 @@ const sun=new T.DirectionalLight(0xfff1d6,.72); sun.position.set(-11,20,17); sun
 sun.shadow.mapSize.set(1024,1024); Object.assign(sun.shadow.camera,{left:-22,right:22,top:24,bottom:-16,near:1,far:70}); scene.add(sun);
 
 const mats={};
-const mat=c=>mats[c]||(mats[c]=new T.MeshLambertMaterial({color:c,flatShading:true}));
+const mat=c=>mats[c]||(mats[c]=new T.MeshLambertMaterial({color:c}));
 const bmats={};
 const bmat=c=>bmats[c]||(bmats[c]=new T.MeshBasicMaterial({color:c}));
 function box(w,h,d,c,x,y,z,p,shadow){const m=new T.Mesh(new T.BoxGeometry(w,h,d),typeof c==='number'?mat(c):c);m.position.set(x,y,z);if(shadow!==false){m.castShadow=true;m.receiveShadow=true}p.add(m);return m}
@@ -34,13 +34,15 @@ const world=new T.Group(); scene.add(world);
 const clouds=[];
 for(let i=0;i<6;i++){const g=new T.Group();for(let k=0;k<4;k++){const m=new T.Mesh(new T.IcosahedronGeometry(rnd(2.5,5),1),bmat(0xffffff));m.position.set(k*4-6,rnd(-1,1),rnd(-1,1));m.scale.y=.62;g.add(m)}g.position.set(rnd(-90,90),rnd(26,44),-110);g.userData.s=rnd(.5,1.2);clouds.push(g);scene.add(g)}
 
-const spot=new T.Group();
-(function(){const a=new T.Mesh(new T.CircleGeometry(1.15,28),new T.MeshLambertMaterial({color:0xa98e5c}));a.rotation.x=-Math.PI/2;a.position.y=.02;a.receiveShadow=true;spot.add(a);const r=new T.Mesh(new T.RingGeometry(.92,1.02,32),bmat(0xfff8e8));r.rotation.x=-Math.PI/2;r.position.y=.03;spot.add(r)})();
-scene.add(spot);
+/* kick spots: the player's (blue ring) and the bot's (red ring) */
+function kickSpot(ring){const s=new T.Group(),a=new T.Mesh(new T.CircleGeometry(1.15,28),new T.MeshLambertMaterial({color:0xa98e5c}));a.rotation.x=-Math.PI/2;a.position.y=.02;a.receiveShadow=true;s.add(a);const r=new T.Mesh(new T.RingGeometry(.92,1.04,32),bmat(ring));r.rotation.x=-Math.PI/2;r.position.y=.03;s.add(r);scene.add(s);return s}
+const spot=kickSpot(0x3f8fe0),botSpot=kickSpot(0xe2513f);botSpot.visible=false;
 
 /* ---------- camera layout ---------- */
 let gainX=.02,gainHigh=.02,gainLow=.01;const KNEE=3;
-const camBase=new T.Vector3(),camOff=new T.Vector3(); /* camOff: extra lift during the island hop flight */let W_=1,H_=1,camLook=new T.Vector3(0,3,0);
+const camBase=new T.Vector3();let W_=1,H_=1,camLook=new T.Vector3(0,3,0);
+/* the bot's kick spot: a little nearer the wall than the player's and to the right, kept on screen in portrait */
+let BX=2.4,BZ=11.4;
 function layout(){
   W_=$('stage').clientWidth||innerWidth;H_=$('stage').clientHeight||innerHeight;const a=W_/H_;
   renderer.setSize(W_,H_,false);const dpr=Math.min(devicePixelRatio||1,2);fx.width=W_*dpr;fx.height=H_*dpr;fctx.setTransform(dpr,0,0,dpr,0,0);
@@ -50,13 +52,14 @@ function layout(){
   camera.fov=fov;camera.aspect=a;camera.updateProjectionMatrix();camBase.set(0,3.2,z);camera.position.copy(camBase);camera.lookAt(camLook);camera.updateMatrixWorld();
   gainHigh=gainX=2*Math.tan(fov/2*Math.PI/180)*z/H_;gainLow=(KNEE-R)/Math.max(60,toScreen(0,R,D)[1]-toScreen(0,KNEE,ZF)[1]);
   spot.position.set(0,0,D);if(cur){cur.p.z=D;cur.m.position.z=D;cur.sh.position.z=D}
+  BZ=D-1.6;BX=clamp(Math.tan(fov/2*Math.PI/180)*a*(camBase.z-BZ)*.55,1.6,3.6);botSpot.position.set(BX,0,BZ);placeBot();
   sun.target.position.set(0,0,4);scene.add(sun.target);updateHint();
 }
 const proj=new T.Vector3();
 function toScreen(x,y,z){proj.set(x,y,z).project(camera);return[(proj.x+1)/2*W_,(1-proj.y)/2*H_]}
 function updateHint(){
-  if(!LVL)return;const show=!hintDone&&!sandbox&&!!LVL.tut&&panes.length>0;$('hint').hidden=!show;if(!show)return;
-  const a=toScreen(0,.3,D),b=toScreen(panes[0].x,panes[0].y,0),h=$('hint');
+  if(!LVL)return;const t=panes.find(isOpen),show=!hintDone&&!sandbox&&!won&&!!LVL.tut&&!!t;$('hint').hidden=!show;if(!show)return;
+  const a=toScreen(0,.3,D),b=toScreen(t.x,t.y,0),h=$('hint');
   h.style.setProperty('--x0',a[0]+'px');h.style.setProperty('--y0',(a[1]-16)+'px');h.style.setProperty('--x1',b[0]+'px');h.style.setProperty('--y1',b[1]+'px');
 }
 

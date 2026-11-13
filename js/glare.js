@@ -7,8 +7,8 @@
    - glints (S.glints): now and then a bright band sweeps once across one pane. Random gaps per pane, never two panes
      at once (a short global cooldown), varied strength/width/direction, sometimes a double, rarely a chain across all panes.
      Breaking a window makes the intact ones nearby shimmer. The last window glints more often.
-   Always on: the intro sweep at level start (and after the island hop), left to right across every pane, so all the
-   targets (the porch skylight too) show themselves. Off on the night level (memory level: the beam does the showing). */
+   Always on: the intro sweep at level start, left to right across every open pane, and one sweep on each window as its
+   shutter rolls up (glFresh). A gold (prize) window glints often. */
 const GLARE_V='varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}';
 const GLARE_F=`uniform float uS,uA,uW,uDir,uSky,uOff,uX0,uY0,uPW,uPH;varying vec2 vUv;
 void main(){
@@ -34,8 +34,10 @@ function addGlare(p){
   o.position.z=.002;o.renderOrder=4;o.visible=false;p.mesh.add(o);
   p.gl={o,u,t:rnd(3,8),s:-1,dur:.5};
 }
-const glOn=()=>LVL&&!LVL.night&&!sandbox;
-const glLive=()=>panes.filter(p=>p.gl&&!p.broken);
+const glOn=()=>LVL&&!sandbox;
+const glLive=()=>panes.filter(p=>p.gl&&isOpen(p));
+/* a window just opened: one bright sweep as the shutter clears it */
+function glFresh(p){if(p.gl)glQueue(p,.32,{amp:1,dur:.5,w:.17,dir:1})}
 const glX=p=>p.mesh.matrixWorld.elements[12];
 function glStart(p,o){const g=p.gl;if(!g||p.broken)return;g.s=0;g.dur=o.dur||rnd(.35,.55);g.u.uA.value=o.amp;g.u.uW.value=o.w||rnd(.09,.18);g.u.uDir.value=o.dir||(Math.random()<.7?1:-1)}
 function glQueue(p,t,o){GL.queue.push({p,t,o})}
@@ -67,7 +69,7 @@ function glareTick(dt){
   const live=glLive(),sky=S.glSky?1:0;
   for(const p of live){const g=p.gl,u=g.u;
     if(g.s>=0){g.s+=dt/g.dur;if(g.s>=1)g.s=-1}
-    else if(S.glints){g.t-=dt;if(g.t<=0){if(GL.cool>0)g.t=rnd(.3,1.2);else glRandom(p,live)}}
+    else if(S.glints){g.t-=dt;if(p.gold&&g.t>1.3)g.t=1.3;if(g.t<=0){if(GL.cool>0&&!p.gold)g.t=rnd(.3,1.2);else glRandom(p,live)}}
     u.uS.value=g.s>=0?lerp(-.25,1.25,g.s):-9;
     u.uSky.value=sky;u.uOff.value=GL.time*.15;
     const e=p.mesh.matrixWorld.elements;u.uX0.value=e[12]-p.w/2;u.uY0.value=e[13]-p.h/2;

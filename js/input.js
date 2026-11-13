@@ -3,17 +3,20 @@
 let drag=null;
 const prevDots=[];
 for(let i=0;i<16;i++){const m=new T.Mesh(new T.SphereGeometry(.11,10,8),new T.MeshBasicMaterial({color:0xffffff,transparent:true}));m.visible=false;scene.add(m);prevDots.push(m)}
+/* Launch velocity that takes a ball from p0 to t in TT seconds under constant acceleration acc (gravity, plus any steady
+   sideways push). Shared by the old aim/shape kicks and the bot. */
+function solveArc(p0,t,TT,acc){return t.clone().sub(p0).sub(acc.clone().multiplyScalar(.5*TT*TT)).divideScalar(TT)}
 function shotFrom(d){
   const a=d.pts[0],e=d.pts[d.pts.length-1],t=new T.Vector3();
   if(S.mode==='aim'){ndc.set(e.x/W_*2-1,1-e.y/H_*2);ray.setFromCamera(ndc,camera);if(!ray.ray.intersectPlane(plane,hitV))hitV.set(0,3,ZF);t.copy(hitV)}
   else{const u=Math.min(W_,H_);t.set((e.x-a.x)/u*26,.4+(a.y-e.y)/u*15,ZF)}
   t.x=clamp(t.x,-16,16);t.y=clamp(t.y,.35,13);t.z=ZF;
-  let best=null,bd=1e9;panes.forEach(p=>{if(p.broken||p.xf||catOn(p))return;const dd=Math.hypot(t.x-p.x,t.y-p.y),r=Math.hypot(p.w,p.h)/2+1.4;if(dd<r&&dd<bd){bd=dd;best=p}});
+  let best=null,bd=1e9;panes.forEach(p=>{if(!isOpen(p)||p.xf)return;const dd=Math.hypot(t.x-p.x,t.y-p.y),r=Math.hypot(p.w,p.h)/2+1.4;if(dd<r&&dd<bd){bd=dd;best=p}});
   if(best&&S.snap>0){t.x=lerp(t.x,best.x,S.snap);t.y=lerp(t.y,best.y,S.snap)}
   let bend=0;const dx=e.x-a.x,dy=e.y-a.y,len=Math.hypot(dx,dy);
   if(len>40){let mx=0;d.pts.forEach(q=>{const c=(dx*(q.y-a.y)-dy*(q.x-a.x))/len;if(Math.abs(c)>Math.abs(mx))mx=c});const r=mx/len;if(Math.abs(r)>.07)bend=clamp(r,-.5,.5)}
   const p0=new T.Vector3(0,R,D),TT=p0.distanceTo(t)/S.speed,ax=-8*(bend*S.curve*BULGE)/(TT*TT),acc=new T.Vector3(ax,-G,0);
-  const v0=t.clone().sub(p0).sub(acc.clone().multiplyScalar(.5*TT*TT)).divideScalar(TT);
+  const v0=solveArc(p0,t,TT,acc);
   return{p0,v0,acc,T:TT,len};
 }
 function showPreview(s){
@@ -22,7 +25,7 @@ function showPreview(s){
 }
 const hidePreview=()=>prevDots.forEach(m=>m.visible=false);
 function point(e){const r=canvas.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top,t:performance.now()}}
-canvas.addEventListener('pointerdown',e=>{initAudio();$('panel').hidden=true;if(won){if(performance.now()-winAt>350)advance();return}if(isLive()){liveDown(e);return}if(!cur||won||cur.born<.12)return;try{canvas.setPointerCapture(e.pointerId)}catch(x){}drag={pts:[point(e)],id:e.pointerId}});
+canvas.addEventListener('pointerdown',e=>{initAudio();$('panel').hidden=true;if(won){vsTap();return}if(isLive()){liveDown(e);return}if(!cur||won||cur.born<.12)return;try{canvas.setPointerCapture(e.pointerId)}catch(x){}drag={pts:[point(e)],id:e.pointerId}});
 canvas.addEventListener('pointermove',e=>{if(!drag||e.pointerId!==drag.id)return;if(isLive()){liveMove(e);return}drag.pts.push(point(e));if(drag.pts.length>120)drag.pts.splice(1,1);const s=shotFrom(drag);if(s.len>18)showPreview(s);else hidePreview()});
 function release(e){initAudio();if(!drag||e.pointerId!==drag.id)return;if(isLive()){if(drag.go)firePlus(drag);drag=null;return}const d=drag;drag=null;hidePreview();const s=shotFrom(d);if(s.len<30||!cur)return;kick(s)}
 canvas.addEventListener('pointerup',release);canvas.addEventListener('pointercancel',()=>{drag=null;hidePreview()});
@@ -31,7 +34,7 @@ addEventListener('touchend',initAudio,{passive:true}); /* iOS only counts a fing
 function ballPx(){const s=toScreen(0,R,D),t=toScreen(0,R*2,D);return{x:s[0],y:s[1],r:Math.max(10,Math.abs(s[1]-t[1]))}}
 function segDist(a,b,c){const dx=b.x-a.x,dy=b.y-a.y,l=dx*dx+dy*dy||1,t=clamp(((c.x-a.x)*dx+(c.y-a.y)*dy)/l,0,1);return Math.hypot(a.x+dx*t-c.x,a.y+dy*t-c.y)}
 function liveDown(e){
-  if(won||hopBusy())return;const pt=point(e),f=balls.find(b=>b.live&&b.state==='fly');
+  if(won)return;const pt=point(e),f=balls.find(b=>b.live&&b.state==='fly'&&b.owner==='p');
   if(!f&&(!cur||cur.born<.12))return;
   try{canvas.setPointerCapture(e.pointerId)}catch(x){}
   if(f){drag={id:e.pointerId,pts:[pt],last:pt,top:pt.y,steer:f};return}
@@ -84,7 +87,7 @@ function kickLive(bp,pt,d,pk){
   balls.push(b);d.steer=b;kickFx();
 }
 function kickFx(){
-  ballsLeft--;used++;drawBalls();sfx.kick();
+  sfx.kick();
   for(let i=0;i<14;i++)dust.emit(rnd(-.3,.3),.1,D+rnd(-.2,.2),rnd(-1.8,1.8),rnd(.6,2.2),rnd(-.5,1.5),rnd(.25,.5),[.72,.6,.42],3);
   addShake(.1);if(!hintDone){hintDone=true;updateHint()}
 }
@@ -143,10 +146,7 @@ function flyLive(b,dt){
 }
 function kick(s){
   const b=cur;cur=null;b.state='fly';b.v.copy(s.v0);b.a.copy(s.acc);b.spin.set(0,1,0).cross(b.v).normalize();b.age=0;balls.push(b);
-  ballsLeft--;used++;drawBalls();sfx.kick();
-  for(let i=0;i<14;i++)dust.emit(rnd(-.3,.3),.1,D+rnd(-.2,.2),rnd(-1.8,1.8),rnd(.6,2.2),rnd(-.5,1.5),rnd(.25,.5),[.72,.6,.42],3);
-  addShake(.1);
-  if(!hintDone){hintDone=true;updateHint()}
+  kickFx();
   later(.26,spawnBall);
 }
 

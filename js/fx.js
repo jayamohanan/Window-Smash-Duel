@@ -27,6 +27,7 @@ function clipRect(poly,xa,xb,ya,yb){
   p=cut(p,q=>q[1]<=yb,(a,b)=>at(a,b,(yb-a[1])/(b[1]-a[1])));return p;
 }
 function shatter(p,hx,hy,ballSpeed){
+  const sm=p.gold?goldShardMats:shardMats;
   const lx=hx-p.x,ly=hy-p.y,xa=-p.w/2,xb=p.w/2,ya=-p.h/2,yb=p.h/2,rays=Math.round(17*S.shards),maxR=Math.hypot(p.w,p.h)*1.15;
   const ang=[];for(let i=0;i<rays;i++)ang.push((i+rnd(-.32,.32))/rays*Math.PI*2);
   const rs=[0,.2,.5,.92,1.5,maxR*1.5];
@@ -37,13 +38,13 @@ function shatter(p,hx,hy,ballSpeed){
     let cx=0,cy=0,ar=0;c.forEach((q,i)=>{const n=c[(i+1)%c.length];ar+=q[0]*n[1]-n[0]*q[1];cx+=q[0];cy+=q[1]});cx/=c.length;cy/=c.length;if(Math.abs(ar)<.0025)return;
     const edge=c.some(q=>Math.abs(q[0]-xa)<.001||Math.abs(q[0]-xb)<.001||Math.abs(q[1]-ya)<.001||Math.abs(q[1]-yb)<.001);
     const sh=new T.Shape();c.forEach((q,i)=>{const x=(q[0]-cx)*.94,y=(q[1]-cy)*.94;i?sh.lineTo(x,y):sh.moveTo(x,y)});
-    const m=new T.Mesh(new T.ShapeGeometry(sh),shardMats[(Math.random()*3)|0]);m.position.set(p.x+cx,p.y+cy,0);m.renderOrder=4;scene.add(m);
+    const m=new T.Mesh(new T.ShapeGeometry(sh),sm[(Math.random()*3)|0]);m.position.set(p.x+cx,p.y+cy,0);m.renderOrder=4;scene.add(m);
     const dx=cx-lx,dy=cy-ly,d=Math.hypot(dx,dy)||.01,n=clamp(d/maxR,0,1),out=!p.xf&&Math.random()<.42,rad=rnd(1,5.5)*(1.3-n);
     const v=new T.Vector3(dx/d*rad,dy/d*rad+rnd(0,2.5),out?rnd(2.5,10):-ballSpeed*rnd(.12,.38)*(1.1-n));
     if(p.oneWay)v.z=-v.z; /* hit from its glass side: the pieces fly away from the wood */
-    if(p.xf){m.position.applyMatrix4(p.xf);m.quaternion.copy(p.q);v.applyQuaternion(p.q)} /* skylight: pane-local to world */
+    if(p.xf){m.position.applyMatrix4(p.xf);m.quaternion.copy(p.q);v.applyQuaternion(p.q)} /* free pane: pane-local to world */
     const stuck=edge&&Math.random()<.38&&!p.moving;
-    shards.push({m,v,w:new T.Vector3(rnd(-16,16),rnd(-16,16),rnd(-16,16)),delay:stuck?rnd(.45,2.3):n*.14+rnd(0,.05),stuck,pane:p,px:p.x,rest:false,age:0,floor:out?.04:(p.room?p.room.floor+.04:.04)});
+    shards.push({m,v,w:new T.Vector3(rnd(-16,16),rnd(-16,16),rnd(-16,16)),delay:stuck?rnd(.45,2.3):n*.14+rnd(0,.05),stuck,pane:p,px:p.x,rest:false,age:0,floor:.04});
   };
   for(let i=0;i<rays;i++)for(let k=0;k<rs.length-1;k++){
     const a=pt(i,k,jit),b=pt(i+1,k,jit),c=pt(i+1,k+1,jit),e=pt(i,k+1,jit);
@@ -65,37 +66,19 @@ function stepConfetti(dt){
     fctx.save();fctx.translate(c.x,c.y);fctx.rotate(c.r);fctx.globalAlpha=Math.min(1,(c.d-c.t)*3);fctx.fillStyle=c.c;fctx.fillRect(-c.s/2,-c.s*.3,c.s,c.s*.6*Math.abs(Math.cos(c.r*1.7))+1);fctx.restore()}
   confOn=confetti.length>0;
 }
-/* lh: hit point in the pane's own frame (skylight); wall panes use the ball position. */
+/* lh: hit point in the pane's own frame (free panes); wall panes use the ball position.
+   The player's breaks get the full juice (freeze, short slow-mo, zoom); the bot's only a small shake, so they don't stall play. */
 function smash(p,b,lh){
   p.broken=true;p.mesh.visible=false;(p.extra||[]).forEach(m=>m.visible=false);
-  const last=!sandbox&&!(hop&&hop.stage<2)&&panes.every(q=>q.broken); /* this hit wins the level */
   const speed=b.v.length(),src=lh||b.p,hx=clamp(src.x,p.x-p.w/2+.05,p.x+p.w/2-.05),hy=clamp(src.y,p.y-p.h/2+.05,p.y+p.h/2-.05);
   shatter(p,hx,hy,Math.max(speed,26));
-  const w=p.xf?new T.Vector3(hx,hy,.1).applyMatrix4(p.xf):new T.Vector3(hx,hy,.15);
-  for(let i=0;i<90;i++)spark.emit(w.x,w.y,w.z,rnd(-7,7),rnd(-5,8),rnd(-5,8),rnd(.2,.75),[.85,.95,1],8);
+  const w=p.xf?new T.Vector3(hx,hy,.1).applyMatrix4(p.xf):new T.Vector3(hx,hy,.15),col=p.gold?[1,.85,.35]:[.85,.95,1];
+  for(let i=0;i<90;i++)spark.emit(w.x,w.y,w.z,rnd(-7,7),rnd(-5,8),rnd(-5,8),rnd(.2,.75),col,8);
   ringAt(new T.Vector3(w.x,w.y,p.xf?w.z+.3:.3));
-  const ro=!last&&revOther(p,lh); /* revolving door V: glance on into the other wing */
-  const thru=!last&&(p.back&&!p.back.broken||!!ro); /* a window in a line with another one behind it: the ball keeps going, so no pause and only a gentle shake */
-  if(!thru){freezeT=S.freeze/1000;slowT=.26}addShake(last?1:thru?.2:.62);zoomK=1;focus.set(w.x,w.y,0);focusK=1;
-  sfx.glass();if(last)sfx.boom();glareBreak(p);
-  if(p.sky&&p.dark&&group.userData.wallTex){const t=group.userData.wallTex.clone();t.needsUpdate=true;t.repeat.set(p.w*.42,p.h*.42);p.dark.material=new T.MeshBasicMaterial({map:t,color:0xb8a898})} /* the wall under the porch shows through */
-  if(p.sky){b.live=false;b.ghost=true;b.state='passed';b.age=0;b.a.set(0,-S.gravity,0);b.v.multiplyScalar(.4)}
-  else if(ro)revChain(b,ro);
-  else if(p.back&&!p.back.broken)chainTo(b,p.back);
-  else if(p.stop)stopBall(b);
-  else if(p.room){const dir=p.room.target.clone().sub(b.p).normalize();b.v.copy(dir).multiplyScalar(Math.max(13,speed*.6));b.a.set(0,0,0);b.state='inside';b.pane=p;inBalls++}
+  if(b.owner!=='bot'){freezeT=S.freeze/1000;slowT=.18;addShake(.62);zoomK=1;focus.set(w.x,w.y,0);focusK=1}else addShake(.22);
+  sfx.glass();if(p.gold)sfx.boom();glareBreak(p);
+  if(p.stop)stopBall(b);
   else{b.v.multiplyScalar(.72);b.a.x=0;b.state='passed'}
-  checkWin();
-}
-function propSmash(p,b){
-  const r=p.room;r.hit=true;r.group.visible=false;
-  const c=r.target;
-  for(let i=0;i<48;i++){const col=r.colors[i%r.colors.length],m=new T.Mesh(sharedDebris,bmat(col));const s=rnd(.08,.3);m.scale.set(s,rnd(.05,.25),s);m.position.copy(c).add(new T.Vector3(rnd(-.45,.45),rnd(-.45,.45),rnd(-.3,.3)));scene.add(m);
-    debris.push({m,v:new T.Vector3(rnd(-6,6),rnd(1,8),rnd(-3.5,5)),w:new T.Vector3(rnd(-14,14),rnd(-14,14),rnd(-14,14)),floor:r.floor+.08,zMin:-5.1,zMax:-.35,xMin:p.x-p.w/2-1.1,xMax:p.x+p.w/2+1.1,age:0,rest:false})}
-  if(r.kind==='fish')for(let i=0;i<90;i++)spark.emit(c.x,c.y,c.z,rnd(-6,6),rnd(0,9),rnd(-2,6),rnd(.4,.9),[.3,.65,1],14);
-  if(r.kind==='tv')for(let i=0;i<60;i++)spark.emit(c.x,c.y,c.z+.2,rnd(-7,7),rnd(0,8),rnd(-1,6),rnd(.2,.55),[1,.8,.3],12);
-  addShake(.32);sfx.prop(r.kind);
-  b.state='dead';b.v.set(-b.v.x*.15,1.8,-b.v.z*.2+1);b.a.set(0,-G,0);b.floor=r.floor+R;b.age=0;
+  onBreak(p,b);
 }
 const sharedDebris=new T.BoxGeometry(1,1,1);
-
