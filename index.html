@@ -47,7 +47,12 @@
     <button id="retryBtn" class="ib" aria-label="Restart level" title="Restart level"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12a7 7 0 1 1-2.05-4.95" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"/><path d="M19.5 3.5v5h-5" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     <button id="soundBtn" class="ib" aria-label="Sound on" title="Sound"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="currentColor" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><g class="on"><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></g><g class="off"><path d="M15.5 9.5l5 5M20.5 9.5l-5 5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></g></svg></button>
   </div>
-  <div id="score" hidden><b id="scP" class="you" title="You">0</b><b id="scB" class="bot" title="Bot">0</b></div>
+  <div id="score" hidden><b id="scP" class="you" title="You">0</b><b id="scB" class="bot" title="Opponent">0</b></div>
+  <div id="turn" hidden></div>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+    <clipPath id="ballClip"><circle r="22"/></clipPath>
+    <g id="ballIcon"><circle r="22" fill="#faf9f3"/><g clip-path="url(#ballClip)" fill="#1f2634"><polygon points="0,-7.5 7.1,-2.3 4.4,6.1 -4.4,6.1 -7.1,-2.3"/><polygon points="0,-13 -7.1,-18.2 -4.4,-26.6 4.4,-26.6 7.1,-18.2"/><polygon points="12.4,-4 15.1,-12.4 23.9,-12.4 26.6,-4 19.5,1.2"/><polygon points="7.6,10.5 16.5,10.5 19.2,18.9 12,24.1 4.9,18.9"/><polygon points="-7.6,10.5 -4.9,18.9 -12,24.1 -19.2,18.9 -16.5,10.5"/><polygon points="-12.4,-4 -19.5,1.2 -26.6,-4 -23.9,-12.4 -15.1,-12.4"/></g><circle r="22" fill="none" stroke="#23304a" stroke-width="3"/></g>
+  </defs></svg>
   <button id="gear" aria-label="Tuning (dev)">⚙</button>
   <div id="panel" hidden>
     <h4>Tuning</h4>
@@ -62,9 +67,14 @@
       <button class="chip" id="glGlint">Glass: glints</button>
     </div>
     <div class="row" id="botRow">
-      <button class="chip" data-bot="easy">Bot: easy</button>
+      <button class="chip" data-bot="easy">Opponent: easy</button>
       <button class="chip" data-bot="normal">Normal</button>
       <button class="chip" data-bot="hard">Hard</button>
+    </div>
+    <div class="row" id="turnRow">
+      <button class="chip" data-turns="0">Real-time</button>
+      <button class="chip" data-turns="1">Turns: 1 kick</button>
+      <button class="chip" data-turns="3">Turns: 3 kicks</button>
     </div>
     <div id="sliders" style="display:grid;gap:7px"></div>
     <div class="row" id="lvlRow"></div>

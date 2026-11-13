@@ -11,7 +11,7 @@ function shotFrom(d){
   if(S.mode==='aim'){ndc.set(e.x/W_*2-1,1-e.y/H_*2);ray.setFromCamera(ndc,camera);if(!ray.ray.intersectPlane(plane,hitV))hitV.set(0,3,ZF);t.copy(hitV)}
   else{const u=Math.min(W_,H_);t.set((e.x-a.x)/u*26,.4+(a.y-e.y)/u*15,ZF)}
   t.x=clamp(t.x,-16,16);t.y=clamp(t.y,.35,13);t.z=ZF;
-  let best=null,bd=1e9;panes.forEach(p=>{if(!isOpen(p)||p.xf)return;const dd=Math.hypot(t.x-p.x,t.y-p.y),r=Math.hypot(p.w,p.h)/2+1.4;if(dd<r&&dd<bd){bd=dd;best=p}});
+  let best=null,bd=1e9;panes.forEach(p=>{if(!isOpen(p)||p.xf||(VS.tb&&p.side==='bot'))return;const dd=Math.hypot(t.x-p.x,t.y-p.y),r=Math.hypot(p.w,p.h)/2+1.4;if(dd<r&&dd<bd){bd=dd;best=p}});
   if(best&&S.snap>0){t.x=lerp(t.x,best.x,S.snap);t.y=lerp(t.y,best.y,S.snap)}
   let bend=0;const dx=e.x-a.x,dy=e.y-a.y,len=Math.hypot(dx,dy);
   if(len>40){let mx=0;d.pts.forEach(q=>{const c=(dx*(q.y-a.y)-dy*(q.x-a.x))/len;if(Math.abs(c)>Math.abs(mx))mx=c});const r=mx/len;if(Math.abs(r)>.07)bend=clamp(r,-.5,.5)}
@@ -87,6 +87,7 @@ function kickLive(bp,pt,d,pk){
   balls.push(b);d.steer=b;kickFx();
 }
 function kickFx(){
+  turnKick('p');
   sfx.kick();
   for(let i=0;i<14;i++)dust.emit(rnd(-.3,.3),.1,D+rnd(-.2,.2),rnd(-1.8,1.8),rnd(.6,2.2),rnd(-.5,1.5),rnd(.25,.5),[.72,.6,.42],3);
   addShake(.1);if(!hintDone){hintDone=true;updateHint()}

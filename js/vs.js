@@ -13,11 +13,12 @@ function isOpen(p){return !!p&&!p.broken&&!p.locked&&(p.shutF===undefined||p.shu
 const prizeGap=()=>rnd(LVL.prize.every[0],LVL.prize.every[1]);
 
 function vsStart(L){
-  Object.assign(VS,{on:true,started:false,over:false,sudden:false,t:0,len:S.round,score:{p:0,bot:0},prize:null,prizeT:L.prize?L.prize.first:1e9,gap:0,recent:[],tickS:-1});
+  Object.assign(VS,{on:true,started:false,over:false,sudden:false,t:0,len:S.round,score:{p:0,bot:0},prize:null,prizeT:L.prize?L.prize.first:1e9,gap:0,recent:[],tickS:-1,
+    tb:S.turns>0,each:Math.ceil(TB_KICKS/Math.max(1,S.turns)),turn:null,left:0,ending:false,pT:0,bT:0,kicks:{p:0,bot:0}});
   panes.forEach(p=>{if(!p.vs)return;p.onShut=reglaze;p.hp0=p.hp;p.armor0=p.armor});
   drawScore();if(clock)clock.set(1,false,false);
-  botReady();
-  const go=()=>later(.8,()=>{if(!VS.on)return;VS.started=true;botStart()}); /* the first shutters rolling up are the start signal */
+  botReady();if(VS.tb)beginTurn('p') /* turn mode: you always start */
+  const go=()=>later(.8,()=>{if(!VS.on)return;VS.started=true;if(!VS.tb)botStart()}); /* the first shutters rolling up are the start signal */
   if(tapped)go();else startGo=go; /* very first round waits for the tap-to-play gate (ui.js) */
 }
 /* Tap-to-play gate: nothing runs until the first tap, which also switches sound on (iOS only allows that from a gesture). */
@@ -30,17 +31,61 @@ function tapToPlay(){
 function vsTick(dt){
   prizeTagTick(dt);
   if(!VS.on||!VS.started||VS.over)return;
-  VS.t+=dt;const left=Math.max(0,VS.len-VS.t);
-  if(clock)clock.set(left/VS.len,left<=10,VS.sudden);
-  const s=Math.ceil(left);if(left>0&&s<=5&&s!==VS.tickS){VS.tickS=s;sfx.click()}
-  if(left<=0){if(VS.score.p!==VS.score.bot){endRound();return}if(!VS.sudden){VS.sudden=true;sfx.ding()}}
+  VS.t+=dt;
+  if(VS.tb)turnTick();
+  else{const left=Math.max(0,VS.len-VS.t);
+    if(clock)clock.set(left/VS.len,left<=10,VS.sudden);
+    const s=Math.ceil(left);if(left>0&&s<=5&&s!==VS.tickS){VS.tickS=s;sfx.click()}
+    if(left<=0){if(VS.score.p!==VS.score.bot){endRound();return}if(!VS.sudden){VS.sudden=true;sfx.ding()}}}
   /* keep S.live ordinary windows up (a broken one still counts until its shutter starts down) */
+  if(VS.tb)return; /* turn mode: no shutters, every window stays open (re-glazed at each turn start) */
   VS.gap-=dt;
   const up=panes.filter(p=>p.vs&&p.shutGoal===0&&!p.gold).length;
   if(up<S.live&&VS.gap<=0&&openOne(false)){VS.gap=.12;if(!hintDone)updateHint()}
   if(LVL.prize){const pr=VS.prize;
-    if(pr){if(!pr.broken){pr.goldT-=dt;if(pr.goldT<=0)closeWin(pr)}}
-    else{VS.prizeT-=dt;if(VS.prizeT<=0&&!openOne(true))VS.prizeT=1}}
+    if(pr){if(!pr.broken&&!VS.tb){pr.goldT-=dt;if(pr.goldT<=0)closeWin(pr)}}
+    else if(!VS.tb){VS.prizeT-=dt;if(VS.prizeT<=0&&!openOne(true))VS.prizeT=1}} /* turn mode: no gold window */
+}
+/* ---------- Turn mode (⚙ panel: S.turns = 1 or 3 kicks per turn; 0 = the real-time race) ----------
+   Two goals on one flat-topped wall, a stone pilaster down the middle: the left half's windows are yours (blue frames),
+   the right half's the opponent's (red frames; the glass stays plain). A broken one shows a dim room behind it. A broken window scores 1 for the half's OWNER, whoever kicked the ball, and stays
+   broken. Clear your whole half and you win at once. Otherwise each side gets TB_KICKS kicks (in turns of S.turns, you first);
+   then the one with more of their half broken wins; level -> one-kick turns each until someone leads after a pair.
+   A turn ends once that side has used its kicks and its last ball has landed (+0.6 s). No shutters, wired glass, gold or clock. */
+const TB_KICKS=15,FRAME_SIDE=TEAM;
+const tbOn=()=>!!(LVL&&LVL.vs&&S.turns>0); /* turn-mode arena (also true while loadLevel builds, before VS is set up) */
+/* Turn-mode arena (called by loadLevel before building): no roller shutters, no wired (two-kick) glass; each window belongs to a half. */
+function turnPanes(ps){ps.forEach(p=>{if(!p.vs)return;delete p.shutter;delete p.hp;p.pts=1;p.side=p.x<0?'p':'bot';p.fc=FRAME_SIDE[p.side]})}
+const halfCount=who=>panes.filter(p=>p.vs&&p.side===who).length;
+function beginTurn(who){
+  if(VS.over)return;
+  VS.turn=who;VS.left=VS.turnN=VS.sudden?1:Math.min(S.turns,TB_KICKS-VS.kicks[who]);VS.ending=false;
+  if(who==='bot')botStart();else botStop();
+  turnLabel(true);
+}
+/* a kick by 'p' (input.js kickFx) or 'bot' (bot.js botKick) uses one of the turn's kicks */
+function turnKick(who){if(!VS.on||!VS.tb||VS.turn!==who||VS.left<=0)return;VS.left--;VS.kicks[who]++;turnLabel(false)}
+function turnTick(){
+  if(VS.turn&&VS.left<=0&&!VS.ending&&!balls.some(b=>b.owner===VS.turn&&b.state==='fly')){VS.ending=true;later(.6,endTurn)}
+}
+function endTurn(){
+  if(!VS.on||!VS.tb||VS.over)return;
+  const who=VS.turn;VS.turn=null;
+  if(VS.prize&&!VS.prize.broken)closeWin(VS.prize);
+  if(who==='p'){VS.pT++;beginTurn('bot');return}
+  VS.bT++;
+  if(VS.kicks.p>=TB_KICKS&&VS.kicks.bot>=TB_KICKS){if(VS.score.p!==VS.score.bot){endRound();return}if(!VS.sudden){VS.sudden=true;sfx.ding()}}
+  beginTurn('p');
+}
+/* "YOUR TURN" / "OPPONENT'S TURN" pill centred on the grass just in front of the kick spots, one football per kick in the turn (used ones fade). */
+function placeTurn(){const y=toScreen(0,0,D+1.3)[1]+4;$('turn').style.top=Math.round(clamp(y,80,H_-46))+'px'}
+function turnLabel(fresh){
+  const e=$('turn'),show=VS.on&&VS.tb&&!VS.over&&!!VS.turn&&!sandbox;e.hidden=!show;if(!show)return;
+  const you=VS.turn==='p',n=VS.turnN||1;
+  e.className=you?'you':'bot';placeTurn();
+  const ball='<svg viewBox="-24 -24 48 48" aria-hidden="true"><use href="#ballIcon"/></svg>';
+  e.innerHTML=(VS.sudden?'SUDDEN DEATH · ':'')+(you?'YOUR TURN':"OPPONENT'S TURN")+' <span aria-label="'+VS.left+' kicks left">'+Array.from({length:n},(_,i)=>'<i'+(i<VS.left?' class="on"':'')+'>'+ball+'</i>').join('')+'</span>'+(VS.sudden?'':'<em>'+(TB_KICKS-VS.kicks[VS.turn])+' left</em>');
+  if(fresh){e.classList.remove('pop');void e.offsetWidth;e.classList.add('pop')}
 }
 /* Open one shut, re-glazed window: not one that just closed, and preferably away from the open ones. */
 function openOne(gold){
@@ -68,28 +113,30 @@ function reglaze(p){
 /* Called by smash() for every broken window. */
 function onBreak(p,b){
   if(!VS.on||!p.vs)return;
-  const who=b.owner==='bot'?'bot':'p';
-  if(!VS.over){const pts=p.gold&&LVL.prize?LVL.prize.pts:1;VS.score[who]+=pts;drawScore(who);gainPop(who,pts)}
-  tintFrame(p,TEAM[who]);
+  const who=b.owner==='bot'?'bot':'p',gets=VS.tb?p.side:who; /* turn mode: the half's owner scores, whoever kicked */
+  if(!VS.over){const pts=VS.tb?1:p.gold&&LVL.prize?LVL.prize.pts:1;VS.score[gets]+=pts;drawScore(gets);gainPop(gets,pts)}
+  if(VS.tb){if(p.inner)p.inner.visible=true}else tintFrame(p,TEAM[who]); /* turn mode: frames keep the half's colour; a dark room shows */
+  if(VS.tb&&!VS.over&&VS.score[gets]>=halfCount(gets))later(.45,endRound); /* half cleared: instant win */
   if(p===VS.prize){VS.prize=null;VS.prizeT=prizeGap()}
   if(!hintDone)updateHint();
   later(.7,()=>{if(VS.on&&p.shutGoal===0)closeWin(p)});
-  if(VS.sudden&&VS.score.p!==VS.score.bot)later(.35,endRound);
+  if(VS.sudden&&!VS.tb&&VS.score.p!==VS.score.bot)later(.35,endRound); /* turn mode settles sudden death after each pair (endTurn) */
 }
 function endRound(){
   if(VS.over||!VS.on)return;VS.over=true;won=true;winAt=performance.now();botStop();
-  if(drag){drag=null;hidePreview()}$('hint').hidden=true;
+  if(drag){drag=null;hidePreview()}$('hint').hidden=true;$('turn').hidden=true;
   if(clock)clock.set(0,true,false);sfx.boom();
   panes.forEach((p,i)=>{if(p.vs&&p.shutGoal===0)later(.2+i*.04,()=>closeWin(p))});
   const pw=VS.score.p>VS.score.bot;
-  later(.7,()=>{$('winWord').textContent=pw?'YOU WIN!':'BOT WINS';$('win').classList.toggle('lose',!pw);$('win').hidden=false;
+  later(.7,()=>{$('winWord').textContent=pw?'YOU WIN!':'OPPONENT WINS';$('win').classList.toggle('lose',!pw);$('win').hidden=false;
     if(pw){burstConfetti();sfx.win()}else sfx.lost();
     later(.9,()=>{$('again').hidden=false})});
 }
 /* The two small scores at the top (blue = you, red = the bot); the scorer's number bumps. Hidden outside VS. */
 function drawScore(who){
-  const on=VS.on&&!sandbox;$('score').hidden=!on;if(!on)return;
-  $('scP').textContent=VS.score.p;$('scB').textContent=VS.score.bot;
+  const on=VS.on&&!sandbox;$('score').hidden=!on;if(!on){$('turn').hidden=true;return}
+  if(VS.tb){$('scP').innerHTML=VS.score.p+'<small>/'+halfCount('p')+'</small>';$('scB').innerHTML=VS.score.bot+'<small>/'+halfCount('bot')+'</small>'}
+  else{$('scP').textContent=VS.score.p;$('scB').textContent=VS.score.bot}
   if(who){const e=$(who==='p'?'scP':'scB');e.classList.remove('bump');void e.offsetWidth;e.classList.add('bump')}
 }
 /* "+1" (or "+3" for gold) rising and fading over the scorer's kick spot, in their colour. */
@@ -100,17 +147,21 @@ function gainPop(who,pts){
 }
 /* The gold window wears a "+3" tag (a sprite just in front of its glass) while it is open, gently pulsing. */
 let prizeTag=null;
+/* gold "+N" text texture for tags on the facade */
+function tagTex(txt){
+  const draw=(g,w,h)=>{g.clearRect(0,0,w,h);g.font='400 120px "Lilita One","Trebuchet MS",sans-serif';g.textAlign='center';g.textBaseline='middle';g.lineJoin='round';
+    g.lineWidth=22;g.strokeStyle='#23304a';g.strokeText(txt,w/2,h/2+8);g.fillStyle='#ffc53a';g.fillText(txt,w/2,h/2+8)};
+  const tex=canvasTex(256,160,draw);
+  /* iOS Safari draws canvas text in a still-loading web font as nothing; redraw once Lilita One is in. */
+  if(document.fonts&&!document.fonts.check(TAG_FONT))document.fonts.load(TAG_FONT).then(()=>{const c=tex.image;draw(c.getContext('2d'),c.width,c.height);tex.needsUpdate=true},()=>{});
+  return tex;
+}
 const TAG_FONT='400 120px "Lilita One"';
 try{document.fonts&&document.fonts.load(TAG_FONT).catch(()=>{})}catch(e){} /* start loading it now, before any gold window */
 function prizeTagTick(dt){
   const pr=VS.on&&VS.prize,show=!!pr&&isOpen(pr)&&!VS.over;
   if(!show){if(prizeTag)prizeTag.visible=false;return}
   if(!prizeTag){
-    const draw=(g,w,h)=>{g.clearRect(0,0,w,h);g.font='400 120px "Lilita One","Trebuchet MS",sans-serif';g.textAlign='center';g.textBaseline='middle';g.lineJoin='round';
-      g.lineWidth=22;g.strokeStyle='#23304a';g.strokeText('+'+LVL.prize.pts,w/2,h/2+8);g.fillStyle='#ffc53a';g.fillText('+'+LVL.prize.pts,w/2,h/2+8)};
-    const tex=canvasTex(256,160,draw);
-    /* iOS Safari draws canvas text in a still-loading web font as nothing; redraw once Lilita One is in. */
-    if(document.fonts&&!document.fonts.check(TAG_FONT))document.fonts.load(TAG_FONT).then(()=>{const c=tex.image;draw(c.getContext('2d'),c.width,c.height);tex.needsUpdate=true},()=>{});
-    prizeTag=new T.Sprite(new T.SpriteMaterial({map:tex,depthWrite:false}));prizeTag.renderOrder=6;scene.add(prizeTag)}
+    prizeTag=new T.Sprite(new T.SpriteMaterial({map:tagTex('+'+LVL.prize.pts),depthWrite:false}));prizeTag.renderOrder=6;scene.add(prizeTag)}
   prizeTag.visible=true;prizeTag.position.set(pr.x,pr.y,.45);const k=1+Math.sin(lt*7)*.08;prizeTag.scale.set(2.3*k,1.44*k,1);
 }

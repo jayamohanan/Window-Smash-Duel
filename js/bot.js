@@ -41,7 +41,7 @@ function botClear(){if(BOT.ball){removeBallMesh(BOT.ball);BOT.ball=null}BOT.ball
 const botEaseK=()=>{const lead=VS.score.bot-VS.score.p;return lead>=2?1+S.botEase*Math.min(3,lead-1):1};
 function thinkDelay(){return S.botThink*rnd(.75,1.3)*botEaseK()}
 function botPick(){
-  const open=panes.filter(p=>p.vs&&isOpen(p)&&!p.aimOff&&!p.narrow);if(!open.length)return null;
+  const open=panes.filter(p=>p.vs&&isOpen(p)&&!p.aimOff&&!p.narrow&&(!VS.tb||p.side==='bot'));if(!open.length)return null; /* turn mode: only its own half */
   const pr=VS.prize;if(pr&&isOpen(pr)&&VS.t-pr.openAt>.5&&Math.random()<.8)return pr;
   if(Math.random()<.55){let best=open[0],bd=1e9;open.forEach(p=>{const d=Math.hypot(p.x-BOT.from.x,(p.y-3)*1.3);if(d<bd){bd=d;best=p}});return best}
   return open[Math.floor(Math.random()*open.length)];
@@ -60,7 +60,7 @@ function botKick(){
   const v0=solveArc(b.p,tgt,TT,new T.Vector3(wind*.85,-S.gravity,0)); /* it knows the wind, roughly */
   b.state='fly';b.live=false;b.age=0;b.born=1;b.m.scale.setScalar(1);b.p.y=R;b.v.copy(v0);b.a.set(0,-S.gravity,0);b.spin.set(0,1,0).cross(b.v).normalize();balls.push(b);
   sfx.kick(.8);for(let i=0;i<10;i++)dust.emit(b.p.x+rnd(-.3,.3),.1,b.p.z+rnd(-.2,.2),rnd(-1.8,1.8),rnd(.6,2.2),rnd(-.5,1.5),rnd(.25,.5),[.72,.6,.42],3);
-  BOT.st='follow';BOT.t=.35;BOT.kickT=0;
+  BOT.st='follow';BOT.t=.35;BOT.kickT=0;turnKick('bot');
 }
 function botTick(dt){
   if(!BOT.fig.visible)return;
@@ -74,7 +74,7 @@ function botTick(dt){
       /* its window went (sniped, or shut): early in the wind-up it picks another; late, it's committed and kicks anyway */
       if(!isOpen(BOT.target)&&!BOT.committed){if(BOT.t>BOT.T*.4){const p=botPick();if(p){BOT.target=p;aimYaw(p);BOT.t+=.12}else{BOT.st='think';BOT.t=.3}}else BOT.committed=true}
       if(BOT.st==='wind'&&BOT.t<=0)botKick()}
-    else if(BOT.st==='follow'&&BOT.t<=0){BOT.st='think';BOT.t=thinkDelay()}}
+    else if(BOT.st==='follow'&&BOT.t<=0){if(VS.tb&&(VS.turn!=='bot'||VS.left<=0))botStop();else{BOT.st='think';BOT.t=thinkDelay()}}}
   /* pose */
   const P=BOT.parts;BOT.yaw+=(BOT.yawGoal-BOT.yaw)*(1-Math.exp(-10*dt));BOT.fig.rotation.y=BOT.yaw+(BOT.side<0?Math.PI:0);
   let leg=0,lean=0,arm=0;

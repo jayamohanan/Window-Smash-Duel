@@ -62,6 +62,8 @@ function stepBall(b,dt){
   return true;
 }
 
+/* turn mode: your ball only comes back while it's your turn and you have kicks left */
+const myTurn=()=>!VS.on||!VS.tb||(VS.turn==='p'&&VS.left>0);
 /* ---------- main loop ---------- */
 let last=performance.now();
 function frame(now){
@@ -78,7 +80,7 @@ function tick(dt,real){
   for(let i=tl.length-1;i>=0&&tl===timers;i--){tl[i].t-=real;if(tl[i].t<=0){const f=tl[i].f;tl.splice(i,1);f()}}
   mechTick(dt);glareTick(real);vsTick(dt);botTick(dt);
   /* the player's next ball appears once their last one is no longer in flight */
-  if(isLive()&&!cur&&!won&&!balls.some(b=>b.owner==='p'&&b.state==='fly')){spawnWait+=real;if(spawnWait>.22){spawnWait=0;spawnBall()}}else spawnWait=0;
+  if(isLive()&&!cur&&!won&&myTurn()&&!balls.some(b=>b.owner==='p'&&b.state==='fly')){spawnWait+=real;if(spawnWait>.22){spawnWait=0;spawnBall()}}else spawnWait=0;
   if(cur){cur.born+=real;const s=clamp(cur.born/.14,0,1);cur.m.scale.setScalar(s<1?s*(1.25-.25*s):1);cur.p.y=R+(1-s)*.5}
   for(let i=balls.length-1;i>=0;i--)if(!stepBall(balls[i],dt))balls.splice(i,1);
   for(let i=shards.length-1;i>=0;i--){const s=shards[i];if(s.rest)continue;

@@ -346,7 +346,7 @@ function buildGantry(o){
 /* ---------- aim help targets: open windows, plus the spot that swings a closed blocker ---------- */
 function aimTargets(){
   const a=[];
-  panes.forEach(p=>{if(!isOpen(p)||p.oneWay||p.narrow||p.aimOff)return;
+  panes.forEach(p=>{if(!isOpen(p)||p.oneWay||p.narrow||p.aimOff||(VS.tb&&p.side==='bot'))return; /* turn mode: the help never pulls toward the opponent's half */
     a.push({x:p.c?p.c.x:p.x,y:p.c?p.c.y:p.y,z:p.c?p.c.z:ZF,w:p.w,h:p.h,vx:p.vx||0})});
   hinges.forEach(hg=>{if(!hg.open&&hg.aim)a.push(hg.aim)});
   return a;

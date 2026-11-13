@@ -30,6 +30,11 @@ const glassTex=canvasTex(256,256,(g,w,h)=>{const a=g.createLinearGradient(0,0,0,
 const glassMat=new T.MeshBasicMaterial({map:glassTex,transparent:true,depthWrite:false,side:T.DoubleSide});
 /* Prize window: the same glass in gold. */
 const goldTex=canvasTex(256,256,(g,w,h)=>{const a=g.createLinearGradient(0,0,0,h);a.addColorStop(0,'rgba(255,190,40,.9)');a.addColorStop(1,'rgba(255,226,120,.72)');g.fillStyle=a;g.fillRect(0,0,w,h);g.fillStyle='rgba(255,255,235,.85)';g.save();g.translate(w*.5,h*.5);g.rotate(-.75);g.fillRect(-w,-74,w*2,44);g.fillRect(-w,-14,w*2,14);g.restore()});
+/* turn mode: a dim room behind each window, shown once it's broken (instead of the yard behind the wall) */
+const roomTex=canvasTex(64,128,(g,w,h)=>{const a=g.createLinearGradient(0,0,0,h);a.addColorStop(0,'#3b4256');a.addColorStop(1,'#151925');g.fillStyle=a;g.fillRect(0,0,w,h)});
+let roomMat=null;
+function roomBehind(p,parent){roomMat=roomMat||new T.MeshBasicMaterial({map:roomTex,side:T.BackSide});
+  const d=1.4,m=new T.Mesh(new T.BoxGeometry(p.w,p.h,d),roomMat);m.position.set(p.x,p.y,ZF-.38-d/2+.001);m.visible=false;parent.add(m);return m}
 const goldGlassMat=new T.MeshBasicMaterial({map:goldTex,transparent:true,depthWrite:false,side:T.DoubleSide});
 const shardMats=[0xd9f2ff,0xaedcf5,0xffffff].map(c=>new T.MeshPhongMaterial({color:c,specular:0xffffff,shininess:90,transparent:true,opacity:.86,side:T.DoubleSide,flatShading:true}));
 const goldShardMats=[0xffd34d,0xffc53a,0xfff0b0].map(c=>new T.MeshPhongMaterial({color:c,specular:0xffffff,shininess:90,transparent:true,opacity:.9,side:T.DoubleSide,flatShading:true}));
@@ -61,18 +66,26 @@ const stoneTex=canvasTex(256,256,(g,w,h)=>{g.fillStyle='#e8d2ac';g.fillRect(0,0,
 stoneTex.wrapS=stoneTex.wrapT=T.RepeatWrapping;stoneTex.repeat.set(.4,.4);
 function buildFacade(L){
   const g=group,W=L.W,H=L.H,pw=PED.w,ph=PED.h;
-  const sh=new T.Shape();sh.moveTo(-W,0);sh.lineTo(W,0);sh.lineTo(W,H);sh.lineTo(pw,H);sh.lineTo(pw,H+ph);sh.absarc(0,H+ph,pw,0,Math.PI,false);sh.lineTo(-pw,H);sh.lineTo(-W,H);sh.closePath();
-  panes.forEach(p=>{const q=new T.Path();q.moveTo(p.x-p.w/2,p.y-p.h/2);q.lineTo(p.x-p.w/2,p.y+p.h/2);q.lineTo(p.x+p.w/2,p.y+p.h/2);q.lineTo(p.x+p.w/2,p.y-p.h/2);q.closePath();sh.holes.push(q)});
-  const wall=new T.Mesh(new T.ExtrudeGeometry(sh,{depth:.38,bevelEnabled:false,curveSegments:24}),[new T.MeshLambertMaterial({map:stoneTex}),mat(0xc9ad82)]);
+  const tb=tbOn(),hole=(sh,p)=>{const q=new T.Path();q.moveTo(p.x-p.w/2,p.y-p.h/2);q.lineTo(p.x-p.w/2,p.y+p.h/2);q.lineTo(p.x+p.w/2,p.y+p.h/2);q.lineTo(p.x+p.w/2,p.y-p.h/2);q.closePath();sh.holes.push(q)};
+  let shapes;
+  if(tb){ /* turn mode: one flat-topped wall (no raised centre, no clock) */
+    const sh=new T.Shape();sh.moveTo(-W,0);sh.lineTo(W,0);sh.lineTo(W,H);sh.lineTo(-W,H);sh.closePath();panes.forEach(p=>hole(sh,p));shapes=[sh]}
+  else{const sh=new T.Shape();sh.moveTo(-W,0);sh.lineTo(W,0);sh.lineTo(W,H);sh.lineTo(pw,H);sh.lineTo(pw,H+ph);sh.absarc(0,H+ph,pw,0,Math.PI,false);sh.lineTo(-pw,H);sh.lineTo(-W,H);sh.closePath();
+    panes.forEach(p=>hole(sh,p));shapes=[sh]}
+  const wall=new T.Mesh(new T.ExtrudeGeometry(shapes,{depth:.38,bevelEnabled:false,curveSegments:24}),[new T.MeshLambertMaterial({map:stoneTex}),mat(0xc9ad82)]);
   wall.position.z=ZF-.38;wall.castShadow=true;wall.receiveShadow=true;g.add(wall);
-  box(W*2+.3,.55,.62,0xb79a70,0,.275,ZF-.19,g); /* plinth */
-  [-1,1].forEach(s=>box(W-pw+.2,.3,.6,0xd8bf95,s*(W+pw)/2+s*.05,H+.15,ZF-.19,g)); /* cornice either side of the raised centre */
+  if(tb){box(W*2+.3,.55,.62,0xb79a70,0,.275,ZF-.19,g); /* plinth */
+    box(W*2+.5,.3,.6,0xd8bf95,0,H+.15,ZF-.19,g); /* flat cornice */
+    box(.4,H,.62,0xd8bf95,0,H/2,ZF-.19,g)} /* centre pilaster: your half | the opponent's half */
+  else{box(W*2+.3,.55,.62,0xb79a70,0,.275,ZF-.19,g); /* plinth */
+    [-1,1].forEach(s=>box(W-pw+.2,.3,.6,0xd8bf95,s*(W+pw)/2+s*.05,H+.15,ZF-.19,g))} /* cornice either side of the raised centre */
   [-1,1].forEach(s=>box(.4,H+.3,.62,0xd8bf95,s*(W+.05),(H+.3)/2,ZF-.19,g)); /* corner posts */
-  panes.forEach(p=>{makeFrame(p,g,FRAME);makePane(p,g)});
-  clock=buildClock(0,H+ph,1);
+  panes.forEach(p=>{makeFrame(p,g,p.fc||FRAME);makePane(p,g);
+    if(p.side)p.inner=roomBehind(p,g)});
+  if(!(L.vs&&S.turns>0))clock=buildClock(0,H+ph,1); /* turn mode has no clock: the footballs in the turn pill count kicks */
 }
 /* Is (x,y) on the facade's solid wall (the window holes are checked before this)? */
-function facadeAt(x,y){const W=LVL.W,H=LVL.H;if(Math.abs(x)>W+.25||y<0)return false;if(y<=H+.05)return true;if(Math.abs(x)>PED.w)return false;const dy=y-H-PED.h;return dy<=0||Math.hypot(x,dy)<=PED.w+.05}
+function facadeAt(x,y){const W=LVL.W,H=LVL.H;if(Math.abs(x)>W+.25||y<0)return false;if(tbOn())return y<=H+.05;if(y<=H+.05)return true;if(Math.abs(x)>PED.w)return false;const dy=y-H-PED.h;return dy<=0||Math.hypot(x,dy)<=PED.w+.05}
 
 /* ---------- round clock on the facade: the gold wedge is the time left, it turns red for the last 10 s and pulses in sudden death ---------- */
 let clock=null;
@@ -105,7 +118,7 @@ function buildStand(L){
 function loadLevel(i){
   clearLevel();sandbox=false;level=(i+LV.length)%LV.length;LVL=LV[level];
   group=new T.Group();scene.add(group);
-  panes=(LVL.layout?LVL.layout():LVL.panes).map(p=>Object.assign({},p));lt=0;wind=LVL.wind||0;
+  panes=(LVL.layout?LVL.layout():LVL.panes).map(p=>Object.assign({},p));if(LVL.vs&&S.turns>0)turnPanes(panes);lt=0;wind=LVL.wind||0;
   if(LVL.type==='facade')buildFacade(LVL);else if(LVL.type==='stand')buildStand(LVL);
   buildMech(LVL);
   won=false;
