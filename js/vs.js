@@ -1,10 +1,11 @@
 'use strict';
 /* ---------- VS round: race the bot; whoever has more points when the clock runs out wins ----------
+   Unlimited balls for both sides; S.round seconds on the facade clock.
    Every facade window sits behind a game-driven roller shutter. S.live of them are open at a time. A broken window is
    shuttered 0.7 s later and re-glazed behind the shutter while another one opens elsewhere (whack-a-mole), so the wall stays
-   fresh to the end. Now and then one extra window opens with gold glass (LVL.prize.pts points) for a few seconds.
-   Breaks are credited by the ball's owner ('p' or 'bot'); the frame takes the breaker's colour and keeps it while shut.
-   A draw at the bell goes to sudden death: the next point wins. */
+   fresh to the end. Now and then one extra window opens with gold glass (LVL.prize.pts points, tagged "+3") for a few seconds.
+   Breaks are credited by the ball's owner ('p' or 'bot'); the frame takes the breaker's colour and keeps it while shut, and
+   a "+1" rises over the scorer's kick spot. A draw at the bell goes to sudden death: the next point wins. */
 const TEAM={p:0x3f8fe0,bot:0xe2513f},FRAME=0xfffaf0,GOLD=0xffc53a;
 const VS={on:false,started:false,over:false,sudden:false,t:0,len:60,score:{p:0,bot:0},prize:null,prizeT:0,gap:0,recent:[],tickS:-1};
 /* open, intact and not shuttered: a live target */
@@ -16,9 +17,18 @@ function vsStart(L){
   panes.forEach(p=>{if(!p.vs)return;p.onShut=reglaze;p.hp0=p.hp;p.armor0=p.armor});
   drawScore();if(clock)clock.set(1,false,false);
   botReady();
-  later(.8,()=>{if(!VS.on)return;VS.started=true;botStart()}); /* the first shutters rolling up are the start signal */
+  const go=()=>later(.8,()=>{if(!VS.on)return;VS.started=true;botStart()}); /* the first shutters rolling up are the start signal */
+  if(tapped)go();else startGo=go; /* very first round waits for the tap-to-play gate (ui.js) */
+}
+/* Tap-to-play gate: nothing runs until the first tap, which also switches sound on (iOS only allows that from a gesture). */
+let tapped=false,startGo=null;
+function tapToPlay(){
+  if(tapped)return;tapped=true;initAudio();
+  const t=$('tap');if(t){t.classList.add('done');setTimeout(()=>t.remove(),350)}
+  if(startGo){const g=startGo;startGo=null;g()}
 }
 function vsTick(dt){
+  prizeTagTick(dt);
   if(!VS.on||!VS.started||VS.over)return;
   VS.t+=dt;const left=Math.max(0,VS.len-VS.t);
   if(clock)clock.set(left/VS.len,left<=10,VS.sudden);
@@ -59,7 +69,7 @@ function reglaze(p){
 function onBreak(p,b){
   if(!VS.on||!p.vs)return;
   const who=b.owner==='bot'?'bot':'p';
-  if(!VS.over){VS.score[who]+=p.gold&&LVL.prize?LVL.prize.pts:1;drawScore(who)}
+  if(!VS.over){const pts=p.gold&&LVL.prize?LVL.prize.pts:1;VS.score[who]+=pts;drawScore(who);gainPop(who,pts)}
   tintFrame(p,TEAM[who]);
   if(p===VS.prize){VS.prize=null;VS.prizeT=prizeGap()}
   if(!hintDone)updateHint();
@@ -76,9 +86,31 @@ function endRound(){
     if(pw){burstConfetti();sfx.win()}else sfx.lost();
     later(.9,()=>{$('again').hidden=false})});
 }
-/* The two small scores at the top (blue = you, red = bot); the scorer's number bumps. Hidden outside VS. */
+/* The two small scores at the top (blue = you, red = the bot); the scorer's number bumps. Hidden outside VS. */
 function drawScore(who){
   const on=VS.on&&!sandbox;$('score').hidden=!on;if(!on)return;
   $('scP').textContent=VS.score.p;$('scB').textContent=VS.score.bot;
   if(who){const e=$(who==='p'?'scP':'scB');e.classList.remove('bump');void e.offsetWidth;e.classList.add('bump')}
+}
+/* "+1" (or "+3" for gold) rising and fading over the scorer's kick spot, in their colour. */
+function gainPop(who,pts){
+  const s=who==='p'?toScreen(0,R+1.1,D):toScreen(BX,2.7,BZ),d=document.createElement('div');
+  d.className='gain '+(who==='p'?'you':'bot')+(pts>1?' big':'');d.textContent='+'+pts;
+  d.style.left=clamp(s[0],40,W_-40)+'px';d.style.top=clamp(s[1],60,H_-30)+'px';$('stage').appendChild(d);setTimeout(()=>d.remove(),1200);
+}
+/* The gold window wears a "+3" tag (a sprite just in front of its glass) while it is open, gently pulsing. */
+let prizeTag=null;
+const TAG_FONT='400 120px "Lilita One"';
+try{document.fonts&&document.fonts.load(TAG_FONT).catch(()=>{})}catch(e){} /* start loading it now, before any gold window */
+function prizeTagTick(dt){
+  const pr=VS.on&&VS.prize,show=!!pr&&isOpen(pr)&&!VS.over;
+  if(!show){if(prizeTag)prizeTag.visible=false;return}
+  if(!prizeTag){
+    const draw=(g,w,h)=>{g.clearRect(0,0,w,h);g.font='400 120px "Lilita One","Trebuchet MS",sans-serif';g.textAlign='center';g.textBaseline='middle';g.lineJoin='round';
+      g.lineWidth=22;g.strokeStyle='#23304a';g.strokeText('+'+LVL.prize.pts,w/2,h/2+8);g.fillStyle='#ffc53a';g.fillText('+'+LVL.prize.pts,w/2,h/2+8)};
+    const tex=canvasTex(256,160,draw);
+    /* iOS Safari draws canvas text in a still-loading web font as nothing; redraw once Lilita One is in. */
+    if(document.fonts&&!document.fonts.check(TAG_FONT))document.fonts.load(TAG_FONT).then(()=>{const c=tex.image;draw(c.getContext('2d'),c.width,c.height);tex.needsUpdate=true},()=>{});
+    prizeTag=new T.Sprite(new T.SpriteMaterial({map:tex,depthWrite:false}));prizeTag.renderOrder=6;scene.add(prizeTag)}
+  prizeTag.visible=true;prizeTag.position.set(pr.x,pr.y,.45);const k=1+Math.sin(lt*7)*.08;prizeTag.scale.set(2.3*k,1.44*k,1);
 }

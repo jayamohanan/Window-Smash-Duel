@@ -4,6 +4,13 @@ let winAt=0,retrying=false,spawnWait=0;
 /* Retry button / end-of-round tap: a quick fade, then the same arena from the start. */
 function restart(){if(retrying)return;retrying=true;$('wipe').classList.add('on');later(.2,reloadLevel)}
 function vsTap(){if(performance.now()-winAt>1300)restart()}
+/* ---------- pause: the whole game stops (balls, bot, clock, timers) and a card offers Resume. Also pauses itself when the
+   tab is hidden. P / Esc toggle it. ---------- */
+let paused=false;
+function setPause(v){
+  if(v===paused||(v&&(won||retrying)))return;paused=v;$('pause').hidden=!v;
+  if(v&&drag){drag=null;hidePreview()}
+}
 
 /* ---------- ball step ---------- */
 function wallHit(b,kind){ /* kind: 'thud' | 'clang' | 'soft' (no sound; the caller makes its own) */
@@ -63,7 +70,7 @@ function frame(now){
   let dt=real;
   if(freezeT>0){freezeT-=real;dt=0}
   else if(slowT>0){slowT-=real;dt=real*S.slow}
-  tick(dt,real);
+  if(!paused)tick(dt,real);
   renderer.render(scene,camera);
 }
 function tick(dt,real){

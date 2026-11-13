@@ -23,16 +23,22 @@ $('glSky').onclick=()=>{S.glSky=!S.glSky;save();chips()};
 $('glGlint').onclick=()=>{S.glints=!S.glints;save();chips()};
 $('sandbox').onclick=()=>loadSandbox();
 $('soundBtn').onclick=()=>{initAudio();S.sound=!S.sound;save();chips()};
-$('retryBtn').onclick=()=>{initAudio();$('panel').hidden=true;restart()};
+$('retryBtn').onclick=()=>{initAudio();$('panel').hidden=true;setPause(false);restart()};
+$('pauseBtn').onclick=()=>{initAudio();$('panel').hidden=true;setPause(!paused)};
+$('resume').onclick=()=>{initAudio();setPause(false)};
+document.addEventListener('visibilitychange',()=>{if(document.hidden)setPause(true)});
 $('reset').onclick=()=>{S=Object.assign({},DEF);save();buildSliders();chips()};
 $('copy').onclick=()=>{const txt=JSON.stringify(S),box=$('copyBox');const fb=()=>{box.hidden=false;box.value=txt;box.select()};$('copy').textContent='Copied';setTimeout(()=>$('copy').textContent='Copy values',1100);try{navigator.clipboard.writeText(txt).catch(fb)}catch(e){fb()}};
 $('again').onclick=()=>{initAudio();restart()};
+$('tap').onclick=tapToPlay;
 /* number keys jump to an arena: digits within 350 ms of each other make one number; unknown numbers do nothing */
 let numBuf='',numT=0;
 function numKey(d){numBuf+=d;clearTimeout(numT);const go=()=>{const n=+numBuf;numBuf='';if(n>=1&&n<=LV.length)loadLevel(n-1)};if(numBuf.length>=2)go();else numT=setTimeout(go,350)}
-addEventListener('keydown',e=>{if(/INPUT|TEXTAREA/.test(e.target.tagName))return;if(/^[0-9]$/.test(e.key)&&!e.ctrlKey&&!e.metaKey&&!e.altKey){numKey(e.key);return}
+addEventListener('keydown',e=>{if(/INPUT|TEXTAREA/.test(e.target.tagName))return;
+  if(!tapped){if(e.key===' '||e.key==='Enter'){e.preventDefault();tapToPlay()}return}if(/^[0-9]$/.test(e.key)&&!e.ctrlKey&&!e.metaKey&&!e.altKey){numKey(e.key);return}
   if(e.key==='m'||e.key==='M'){const o=['live','livep','aim','shape'];S.mode=o[(o.indexOf(S.mode)+1)%o.length];save();buildSliders();chips();reloadLevel();pop('Control: '+S.mode,0,4,0,true)}
-  else if(e.key==='r'||e.key==='R')reloadLevel();
+  else if(e.key==='p'||e.key==='P'||e.key==='Escape')setPause(!paused);
+  else if(e.key==='r'||e.key==='R'){setPause(false);reloadLevel()}
   else if((e.key===' '||e.key==='Enter')&&won){e.preventDefault();vsTap()}});
 addEventListener('resize',layout);
 
