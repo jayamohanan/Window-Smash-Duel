@@ -3,8 +3,9 @@
    - Reads index.html and collects the game <script src="js/..."> tags in order.
    - Concatenates the game scripts into one file (they are plain scripts sharing globals,
      so one script with the same order behaves the same).
-   - Copies three.min.js, the stylesheet and assets into build/.
-   - Fails if anything outside the library references an external URL (Poki allows no external requests).
+   - Copies the libraries in js/lib/ (three.min.js, netlib.min.js), the stylesheet and assets into build/.
+   - Fails if anything outside the libraries references an external URL (Poki allows no external requests; netlib's only
+     one is Poki's own signalling server).
    - Zips build/ into window-smash-poki.zip (index.html at the zip root) using the system `zip`;
      if `zip` is missing (e.g. on a CI host) it warns and skips the zip.
    Usage: sh build.sh [--no-zip]   (or: node tools/build.js [--no-zip]) */
@@ -16,7 +17,7 @@ const { execFileSync } = require('child_process');
 const ROOT = path.resolve(__dirname, '..');
 const DIST = path.join(ROOT, 'build');
 const ZIP = path.join(ROOT, 'window-smash-poki.zip');
-const LIB = 'js/lib/three.min.js';
+const LIB = 'js/lib/three.min.js', isLib = s => s.startsWith('js/lib/');
 const noZip = process.argv.includes('--no-zip');
 
 const read = p => fs.readFileSync(path.join(ROOT, p), 'utf8');
@@ -38,7 +39,7 @@ const tags = [...html.matchAll(/<script src="([^"]+)"><\/script>\n?/g)];
 if (!tags.length) fail('no <script src> tags found in index.html');
 const srcs = tags.map(m => m[1]);
 if (!srcs.includes(LIB)) fail('index.html must load ' + LIB);
-const game = srcs.filter(s => s !== LIB);
+const libs = srcs.filter(isLib), game = srcs.filter(s => !isLib(s));
 if (srcs.indexOf(LIB) > srcs.indexOf(game[0])) fail(LIB + ' must load before the game scripts');
 
 // 3. bundle game scripts into one file
@@ -49,13 +50,13 @@ const bundle = "'use strict';\n" + game.map(s => {
 fs.mkdirSync(path.join(DIST, 'js'), { recursive: true });
 fs.writeFileSync(path.join(DIST, 'js/game.js'), bundle);
 
-// 4. rewrite index.html: remove all script tags, then add the library and the bundle before </body>
+// 4. rewrite index.html: remove all script tags, then add the libraries and the bundle before </body>
 tags.forEach(m => { html = html.replace(m[0], ''); });
-html = html.replace('</body>', '<script src="' + LIB + '"></script>\n<script src="js/game.js"></script>\n</body>');
+html = html.replace('</body>', libs.map(l => '<script src="' + l + '"></script>\n').join('') + '<script src="js/game.js"></script>\n</body>');
 fs.writeFileSync(path.join(DIST, 'index.html'), html);
 
 // 5. copy static files
-copy(LIB);
+libs.forEach(copy);
 copy('css');
 copy('assets');
 

@@ -24,7 +24,8 @@ function makeBall(x,z){
   const sh=new T.Mesh(new T.PlaneGeometry(1.2,1.2),new T.MeshBasicMaterial({map:shadowTex,transparent:true,depthWrite:false}));sh.rotation.x=-Math.PI/2;sh.position.set(x,.04,z);scene.add(sh);
   return{m,sh,p:m.position,v:new T.Vector3(),a:new T.Vector3(),state:'idle',age:0,born:0,spin:new T.Vector3(1,0,0),owner:'p'};
 }
-function spawnBall(){if(won||cur)return;cur=makeBall(0,D)}
+/* the next ball appears on the kicking side's spot: yours, or player 2's (pass-and-play) during their turn */
+function spawnBall(){if(won||cur)return;const s=kickSide();if(!s)return;cur=makeBall(s==='bot'?BX:PX,D);cur.owner=s}
 function removeBallMesh(b){scene.remove(b.m);scene.remove(b.sh);b.sh.material.dispose()}
 const plane=new T.Plane(new T.Vector3(0,0,1),-.16),ray=new T.Raycaster(),ndc=new T.Vector2(),hitV=new T.Vector3();
 const ZF=.16,G=16,BULGE=5;

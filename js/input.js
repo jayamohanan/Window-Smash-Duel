@@ -11,11 +11,12 @@ function shotFrom(d){
   if(S.mode==='aim'){ndc.set(e.x/W_*2-1,1-e.y/H_*2);ray.setFromCamera(ndc,camera);if(!ray.ray.intersectPlane(plane,hitV))hitV.set(0,3,ZF);t.copy(hitV)}
   else{const u=Math.min(W_,H_);t.set((e.x-a.x)/u*26,.4+(a.y-e.y)/u*15,ZF)}
   t.x=clamp(t.x,-16,16);t.y=clamp(t.y,.35,13);t.z=ZF;
-  let best=null,bd=1e9;panes.forEach(p=>{if(!isOpen(p)||p.xf||(VS.tb&&p.side==='bot'))return;const dd=Math.hypot(t.x-p.x,t.y-p.y),r=Math.hypot(p.w,p.h)/2+1.4;if(dd<r&&dd<bd){bd=dd;best=p}});
+  const side=cur?cur.owner:'p';
+  let best=null,bd=1e9;panes.forEach(p=>{if(!isOpen(p)||p.xf||(VS.tb&&p.side!==side))return;const dd=Math.hypot(t.x-p.x,t.y-p.y),r=Math.hypot(p.w,p.h)/2+1.4;if(dd<r&&dd<bd){bd=dd;best=p}});
   if(best&&S.snap>0){t.x=lerp(t.x,best.x,S.snap);t.y=lerp(t.y,best.y,S.snap)}
   let bend=0;const dx=e.x-a.x,dy=e.y-a.y,len=Math.hypot(dx,dy);
   if(len>40){let mx=0;d.pts.forEach(q=>{const c=(dx*(q.y-a.y)-dy*(q.x-a.x))/len;if(Math.abs(c)>Math.abs(mx))mx=c});const r=mx/len;if(Math.abs(r)>.07)bend=clamp(r,-.5,.5)}
-  const p0=new T.Vector3(0,R,D),TT=p0.distanceTo(t)/S.speed,ax=-8*(bend*S.curve*BULGE)/(TT*TT),acc=new T.Vector3(ax,-G,0);
+  const p0=new T.Vector3(cur?cur.p.x:PX,R,D),TT=p0.distanceTo(t)/S.speed,ax=-8*(bend*S.curve*BULGE)/(TT*TT),acc=new T.Vector3(ax,-G,0);
   const v0=solveArc(p0,t,TT,acc);
   return{p0,v0,acc,T:TT,len};
 }
@@ -31,10 +32,10 @@ function release(e){initAudio();if(!drag||e.pointerId!==drag.id)return;if(isLive
 canvas.addEventListener('pointerup',release);canvas.addEventListener('pointercancel',()=>{drag=null;hidePreview()});
 addEventListener('touchend',initAudio,{passive:true}); /* iOS only counts a finger lifting (not going down) as permission to start audio */
 /* Live swipe, modelled on the input observed in World Soccer Champions: the kick fires mid-drag, the ball flies forward on its own clock, and pointer movement steers it. */
-function ballPx(){const s=toScreen(0,R,D),t=toScreen(0,R*2,D);return{x:s[0],y:s[1],r:Math.max(10,Math.abs(s[1]-t[1]))}}
+function ballPx(){const x=cur?cur.p.x:PX,s=toScreen(x,R,D),t=toScreen(x,R*2,D);return{x:s[0],y:s[1],r:Math.max(10,Math.abs(s[1]-t[1]))}}
 function segDist(a,b,c){const dx=b.x-a.x,dy=b.y-a.y,l=dx*dx+dy*dy||1,t=clamp(((c.x-a.x)*dx+(c.y-a.y)*dy)/l,0,1);return Math.hypot(a.x+dx*t-c.x,a.y+dy*t-c.y)}
 function liveDown(e){
-  if(won)return;const pt=point(e),f=balls.find(b=>b.live&&b.state==='fly'&&b.owner==='p');
+  if(won)return;const pt=point(e),f=balls.find(b=>b.live&&b.state==='fly'&&localHuman(b.owner)&&!b.puppet);
   if(!f&&(!cur||cur.born<.12))return;
   try{canvas.setPointerCapture(e.pointerId)}catch(x){}
   if(f){drag={id:e.pointerId,pts:[pt],last:pt,top:pt.y,steer:f};return}
@@ -78,18 +79,18 @@ function kickLive(bp,pt,d,pk){
   const sv=swipeVel(d),spd=(pk===undefined?Math.hypot(sv.x,sv.y):pk)/Math.min(W_,H_);
   let P=clamp(6+spd*S.power,6,32);
   const plus=S.mode==='livep';
-  if(plus){kickPlus(b,bp,pt,spd);balls.push(b);d.steer=b;kickFx();return}
+  if(plus){kickPlus(b,bp,pt,spd);balls.push(b);d.steer=b;kickFx(b);return}
   let dx=sv.x,dy=sv.y;if(plus||spd<.2||dy>-1){dx=pt.x-bp.x;dy=pt.y-bp.y}
   const rowY=toScreen(0,2.8,ZF)[1],k=(bp.y-rowY)/Math.max(1,-dy);
   let xw=0;ndc.set((bp.x+dx*k)/W_*2-1,1-rowY/H_*2);ray.setFromCamera(ndc,camera);if(ray.ray.intersectPlane(plane,hitV))xw=clamp(hitV.x,-16,16);
   b.P=P;b.lift=0;b.plus=false;b.vn=P*S.loft;b.baseY=bp.y;b.topY=Math.min(d.top,pt.y+Math.min(0,sv.y)*.08);
-  b.v.set(xw*P/13,b.vn,-P*D/13);b.a.set(0,-S.gravity,0);
-  balls.push(b);d.steer=b;kickFx();
+  b.v.set((xw-b.p.x)*P/13,b.vn,-P*D/13);b.a.set(0,-S.gravity,0); /* sideways from the ball's own spot to the aimed wall point */
+  balls.push(b);d.steer=b;kickFx(b);
 }
-function kickFx(){
-  turnKick('p');
+function kickFx(b){
+  turnKick(b.owner);netKick(b);
   sfx.kick();
-  for(let i=0;i<14;i++)dust.emit(rnd(-.3,.3),.1,D+rnd(-.2,.2),rnd(-1.8,1.8),rnd(.6,2.2),rnd(-.5,1.5),rnd(.25,.5),[.72,.6,.42],3);
+  for(let i=0;i<14;i++)dust.emit(b.p.x+rnd(-.3,.3),.1,D+rnd(-.2,.2),rnd(-1.8,1.8),rnd(.6,2.2),rnd(-.5,1.5),rnd(.25,.5),[.72,.6,.42],3);
   addShake(.1);if(!hintDone){hintDone=true;updateHint()}
 }
 /* Live+: the launch is solved once, at the kick, then the ball is left to plain gravity and drag (no steering, no ceiling).
@@ -131,7 +132,7 @@ function flyLive(b,dt){
      and nudge toward the nearest one. */
   if(S.snap>0&&b.p.z<D*.6&&v.z<-.5&&b.p.y>R+.02){
     let best=null,bd=1e9,bt=0,bx=0,by=0;
-    aimTargets().forEach(p=>{const tr=(b.p.z-p.z)/-v.z;if(tr<.02)return;
+    aimTargets(b).forEach(p=>{const tr=(b.p.z-p.z)/-v.z;if(tr<.02)return;
       const py=b.p.y+b.vn*tr-.5*g*tr*tr,px=b.p.x+v.x*tr;if(py<R+.2)return;
       const tx=p.x+p.vx*tr,ty=p.y,q=Math.hypot(px-tx,py-ty);
       if(q<Math.hypot(p.w,p.h)/2+1.3&&q<bd){bd=q;best=p;bt=tr;bx=tx-px;by=ty-py}});
@@ -147,7 +148,7 @@ function flyLive(b,dt){
 }
 function kick(s){
   const b=cur;cur=null;b.state='fly';b.v.copy(s.v0);b.a.copy(s.acc);b.spin.set(0,1,0).cross(b.v).normalize();b.age=0;balls.push(b);
-  kickFx();
+  kickFx(b);
   later(.26,spawnBall);
 }
 

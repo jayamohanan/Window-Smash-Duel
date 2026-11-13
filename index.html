@@ -43,6 +43,7 @@
   </svg></div>
   <div class="hud">
     <div class="spacer"></div>
+    <button id="homeBtn" class="ib" aria-label="Menu" title="Menu"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11.5L12 4.5l8 7M6.5 9.5V19.5h4v-5h3v5h4V9.5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     <button id="pauseBtn" class="ib" aria-label="Pause" title="Pause"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="5" width="4.2" height="14" rx="1.4" fill="currentColor"/><rect x="13.8" y="5" width="4.2" height="14" rx="1.4" fill="currentColor"/></svg></button>
     <button id="retryBtn" class="ib" aria-label="Restart level" title="Restart level"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12a7 7 0 1 1-2.05-4.95" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"/><path d="M19.5 3.5v5h-5" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     <button id="soundBtn" class="ib" aria-label="Sound on" title="Sound"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="currentColor" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><g class="on"><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></g><g class="off"><path d="M15.5 9.5l5 5M20.5 9.5l-5 5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></g></svg></button>
@@ -89,10 +90,39 @@
   <div id="win" hidden><h2 id="winWord">YOU WIN!</h2><button id="again" hidden>Play again</button></div>
   <div id="pause" hidden><div class="pcard"><h2>PAUSED</h2><button id="resume">Resume</button></div></div>
   <div id="wipe"></div>
-  <button id="tap" aria-label="Tap to play"><span>TAP TO PLAY</span></button>
+  <div id="menu" hidden>
+    <div class="mcard" data-v="main">
+      <h1>WINDOW SMASH <span>DUEL</span></h1>
+      <button class="mb" id="mBot">VS ROBOT</button>
+      <button class="mb blue" id="mLocal">2 PLAYERS<small>on this device</small></button>
+      <button class="mb gold" id="mFriend">PLAY A FRIEND<small>online, with a code</small></button>
+    </div>
+    <div class="mcard" data-v="friend" hidden>
+      <h2>PLAY A FRIEND</h2>
+      <button class="mb gold" id="mCreate">CREATE GAME</button>
+      <p>or join your friend's game</p>
+      <form id="joinForm" class="joinrow"><input id="code" maxlength="12" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="CODE" aria-label="Game code"><button class="mb blue" id="mJoin">JOIN</button></form>
+      <button class="link" data-back>Back</button>
+    </div>
+    <div class="mcard" data-v="wait" hidden>
+      <h2>YOUR GAME CODE</h2>
+      <div id="myCode" class="code">····</div>
+      <p>Send this code to your friend.</p>
+      <button class="mb blue" id="mCopy">COPY INVITE</button>
+      <p class="st" id="waitSt" role="status">Waiting for your friend…</p>
+      <button class="link" data-back>Cancel</button>
+    </div>
+    <div class="mcard" data-v="msg" hidden>
+      <h2 id="msgH">…</h2>
+      <p id="msgP" role="status"></p>
+      <button class="mb" id="mMsgBot">PLAY THE ROBOT</button>
+      <button class="link" data-back>Menu</button>
+    </div>
+  </div>
 </div>
 
 <script src="js/lib/three.min.js"></script>
+<script src="js/lib/netlib.min.js"></script>
 <script src="js/settings.js"></script>
 <script src="js/scene.js"></script>
 <script src="js/ball.js"></script>
@@ -105,6 +135,7 @@
 <script src="js/cursor.js"></script>
 <script src="js/vs.js"></script>
 <script src="js/bot.js"></script>
+<script src="js/net.js"></script>
 <script src="js/game.js"></script>
 <script src="js/ui.js"></script>
 </body>

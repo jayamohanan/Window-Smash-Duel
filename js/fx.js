@@ -75,7 +75,8 @@ function smash(p,b,lh){
   const w=p.xf?new T.Vector3(hx,hy,.1).applyMatrix4(p.xf):new T.Vector3(hx,hy,.15),col=p.gold?[1,.85,.35]:[.85,.95,1];
   for(let i=0;i<90;i++)spark.emit(w.x,w.y,w.z,rnd(-7,7),rnd(-5,8),rnd(-5,8),rnd(.2,.75),col,8);
   ringAt(new T.Vector3(w.x,w.y,p.xf?w.z+.3:.3));
-  if(b.owner!=='bot'){freezeT=S.freeze/1000;slowT=.18;addShake(.62);zoomK=1;focus.set(w.x,w.y,0);focusK=1}else addShake(.22);
+  netHit(p,b,hx,hy);
+  if(localHuman(b.owner)&&!b.puppet){freezeT=S.freeze/1000;slowT=.18;addShake(.62);zoomK=1;focus.set(w.x,w.y,0);focusK=1}else addShake(.22);
   sfx.glass();if(p.gold)sfx.boom();glareBreak(p);
   if(p.stop)stopBall(b);
   else{b.v.multiplyScalar(.72);b.a.x=0;b.state='passed'}

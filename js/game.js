@@ -3,7 +3,7 @@
 let winAt=0,retrying=false,spawnWait=0;
 /* Retry button / end-of-round tap: a quick fade, then the same arena from the start. */
 function restart(){if(retrying)return;retrying=true;$('wipe').classList.add('on');later(.2,reloadLevel)}
-function vsTap(){if(performance.now()-winAt>1300)restart()}
+function vsTap(){if(performance.now()-winAt>1300){netAgain();restart()}}
 /* ---------- pause: the whole game stops (balls, bot, clock, timers) and a card offers Resume. Also pauses itself when the
    tab is hidden. P / Esc toggle it. ---------- */
 let paused=false;
@@ -17,7 +17,7 @@ function wallHit(b,kind){ /* kind: 'thud' | 'clang' | 'soft' (no sound; the call
   b.p.z=ZF+R*.5;b.v.z*=-.42;b.v.x*=.55;b.v.y*=.55;b.a.x=0;b.state='bounce';b.age=Math.min(b.age,.3);
   for(let i=0;i<20;i++)dust.emit(b.p.x,b.p.y,.3,rnd(-2.2,2.2),rnd(-1,2.4),rnd(0,2.2),rnd(.25,.55),[.92,.76,.56],2);
   if(kind==='soft')return;
-  addShake(b.owner==='bot'?.06:.16);if(kind==='clang')sfx.clang();else sfx.thud();
+  addShake(localHuman(b.owner)?.16:.06);if(kind==='clang')sfx.clang();else sfx.thud();netSfx(b,kind==='clang'?'clang':'thud');
 }
 /* The ball reaches the wall plane ZF from the front (+z). Windows first (shutter, boards, wired glass, glass, hole),
    then the solid wall around them. A bot on the far side would need the mirror of this for a -z -> +z crossing. */
@@ -38,6 +38,7 @@ function crossPlane(b){
 }
 const _pp=new T.Vector3();
 function stepBall(b,dt){
+  if(b.puppet)return puppetStep(b,dt); /* the online friend's ball: drawn from their device's reports (net.js) */
   b.age+=dt;if(b.live&&b.state==='fly')flyLive(b,dt);const sub=4,h=dt/sub;
   /* wind pushes any ball that is in the air */
   if(wind&&!b.ghost&&b.p.y>R+.05&&(b.state==='fly'||b.state==='passed'||b.state==='bounce'))b.v.x+=wind*dt;
@@ -62,8 +63,9 @@ function stepBall(b,dt){
   return true;
 }
 
-/* turn mode: your ball only comes back while it's your turn and you have kicks left */
-const myTurn=()=>!VS.on||!VS.tb||(VS.turn==='p'&&VS.left>0);
+/* Which side kicks next on this device: you, any time in the real-time race; in turn mode the side whose turn it is,
+   if it's played here (you, or player 2 in pass-and-play) and has kicks left. null = nobody here (bot / online friend). */
+function kickSide(){if(!VS.on||!VS.tb)return 'p';return VS.turn&&localHuman(VS.turn)&&VS.left>0?VS.turn:null}
 /* ---------- main loop ---------- */
 let last=performance.now();
 function frame(now){
@@ -80,9 +82,11 @@ function tick(dt,real){
   for(let i=tl.length-1;i>=0&&tl===timers;i--){tl[i].t-=real;if(tl[i].t<=0){const f=tl[i].f;tl.splice(i,1);f()}}
   mechTick(dt);glareTick(real);vsTick(dt);botTick(dt);
   /* the player's next ball appears once their last one is no longer in flight */
-  if(isLive()&&!cur&&!won&&myTurn()&&!balls.some(b=>b.owner==='p'&&b.state==='fly')){spawnWait+=real;if(spawnWait>.22){spawnWait=0;spawnBall()}}else spawnWait=0;
+  const ks=kickSide();
+  if(isLive()&&!cur&&!won&&ks&&!balls.some(b=>b.owner===ks&&b.state==='fly')){spawnWait+=real;if(spawnWait>.22){spawnWait=0;spawnBall()}}else spawnWait=0;
   if(cur){cur.born+=real;const s=clamp(cur.born/.14,0,1);cur.m.scale.setScalar(s<1?s*(1.25-.25*s):1);cur.p.y=R+(1-s)*.5}
   for(let i=balls.length-1;i>=0;i--)if(!stepBall(balls[i],dt))balls.splice(i,1);
+  netTick(real);
   for(let i=shards.length-1;i>=0;i--){const s=shards[i];if(s.rest)continue;
     /* shards still in the frame ride along with a moving window (rail windows) until they drop */
     if(s.delay>0&&s.pane.x!==s.px){s.m.position.x+=s.pane.x-s.px;s.px=s.pane.x}

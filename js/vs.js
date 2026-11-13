@@ -14,20 +14,17 @@ const prizeGap=()=>rnd(LVL.prize.every[0],LVL.prize.every[1]);
 
 function vsStart(L){
   Object.assign(VS,{on:true,started:false,over:false,sudden:false,t:0,len:S.round,score:{p:0,bot:0},prize:null,prizeT:L.prize?L.prize.first:1e9,gap:0,recent:[],tickS:-1,
-    tb:S.turns>0,each:Math.ceil(TB_KICKS/Math.max(1,S.turns)),turn:null,left:0,ending:false,pT:0,bT:0,kicks:{p:0,bot:0}});
+    tb:turnsPer()>0,each:Math.ceil(TB_KICKS/Math.max(1,turnsPer())),turn:null,left:0,ending:false,pT:0,bT:0,kicks:{p:0,bot:0}});
   panes.forEach(p=>{if(!p.vs)return;p.onShut=reglaze;p.hp0=p.hp;p.armor0=p.armor});
   drawScore();if(clock)clock.set(1,false,false);
-  botReady();if(VS.tb)beginTurn('p') /* turn mode: you always start */
+  if(OPP.mode==='bot')botReady();else botSpot.visible=true; /* a person plays red: no robot */
+  if(VS.tb)beginTurn(OPP.mode==='net'&&!NET.host?'bot':'p') /* turn mode: blue starts; online, whoever created the game */
   const go=()=>later(.8,()=>{if(!VS.on)return;VS.started=true;if(!VS.tb)botStart()}); /* the first shutters rolling up are the start signal */
   if(tapped)go();else startGo=go; /* very first round waits for the tap-to-play gate (ui.js) */
 }
-/* Tap-to-play gate: nothing runs until the first tap, which also switches sound on (iOS only allows that from a gesture). */
+/* Start gate: the round waits behind the menu until a mode is picked (ui.js startMode, which reloads the round with
+   tapped set); that tap also switches sound on (iOS only allows that from a gesture). */
 let tapped=false,startGo=null;
-function tapToPlay(){
-  if(tapped)return;tapped=true;initAudio();
-  const t=$('tap');if(t){t.classList.add('done');setTimeout(()=>t.remove(),350)}
-  if(startGo){const g=startGo;startGo=null;g()}
-}
 function vsTick(dt){
   prizeTagTick(dt);
   if(!VS.on||!VS.started||VS.over)return;
@@ -53,20 +50,21 @@ function vsTick(dt){
    then the one with more of their half broken wins; level -> one-kick turns each until someone leads after a pair.
    A turn ends once that side has used its kicks and its last ball has landed (+0.6 s). No shutters, wired glass, gold or clock. */
 const TB_KICKS=15,FRAME_SIDE=TEAM;
-const tbOn=()=>!!(LVL&&LVL.vs&&S.turns>0); /* turn-mode arena (also true while loadLevel builds, before VS is set up) */
+const tbOn=()=>!!(LVL&&LVL.vs&&turnsPer()>0); /* turn-mode arena (also true while loadLevel builds, before VS is set up) */
 /* Turn-mode arena (called by loadLevel before building): no roller shutters, no wired (two-kick) glass; each window belongs to a half. */
 function turnPanes(ps){ps.forEach(p=>{if(!p.vs)return;delete p.shutter;delete p.hp;p.pts=1;p.side=p.x<0?'p':'bot';p.fc=FRAME_SIDE[p.side]})}
 const halfCount=who=>panes.filter(p=>p.vs&&p.side===who).length;
 function beginTurn(who){
   if(VS.over)return;
-  VS.turn=who;VS.left=VS.turnN=VS.sudden?1:Math.min(S.turns,TB_KICKS-VS.kicks[who]);VS.ending=false;
-  if(who==='bot')botStart();else botStop();
+  VS.turn=who;VS.left=VS.turnN=VS.sudden?1:Math.min(turnsPer(),TB_KICKS-VS.kicks[who]);VS.ending=false;
+  if(who==='bot'&&OPP.mode==='bot')botStart();else botStop();
+  if(cur&&cur.owner!==who){removeBallMesh(cur);cur=null} /* pass-and-play: the waiting ball moves to the other spot */
   turnLabel(true);
 }
 /* a kick by 'p' (input.js kickFx) or 'bot' (bot.js botKick) uses one of the turn's kicks */
 function turnKick(who){if(!VS.on||!VS.tb||VS.turn!==who||VS.left<=0)return;VS.left--;VS.kicks[who]++;turnLabel(false)}
 function turnTick(){
-  if(VS.turn&&VS.left<=0&&!VS.ending&&!balls.some(b=>b.owner===VS.turn&&b.state==='fly')){VS.ending=true;later(.6,endTurn)}
+  if(VS.turn&&VS.left<=0&&!VS.ending&&!balls.some(b=>b.owner===VS.turn&&b.state==='fly')){VS.ending=true;const n=VS.pT+VS.bT;later(.6,()=>{if(VS.ending&&VS.pT+VS.bT===n)endTurn()})}
 }
 function endTurn(){
   if(!VS.on||!VS.tb||VS.over)return;
@@ -84,9 +82,11 @@ function turnLabel(fresh){
   const you=VS.turn==='p',n=VS.turnN||1;
   e.className=you?'you':'bot';placeTurn();
   const ball='<svg viewBox="-24 -24 48 48" aria-hidden="true"><use href="#ballIcon"/></svg>';
-  e.innerHTML=(VS.sudden?'SUDDEN DEATH · ':'')+(you?'YOUR TURN':"OPPONENT'S TURN")+' <span aria-label="'+VS.left+' kicks left">'+Array.from({length:n},(_,i)=>'<i'+(i<VS.left?' class="on"':'')+'>'+ball+'</i>').join('')+'</span>'+(VS.sudden?'':'<em>'+(TB_KICKS-VS.kicks[VS.turn])+' left</em>');
+  e.innerHTML=(VS.sudden?'SUDDEN DEATH · ':'')+sideName(VS.turn)+' <span aria-label="'+VS.left+' kicks left">'+Array.from({length:n},(_,i)=>'<i'+(i<VS.left?' class="on"':'')+'>'+ball+'</i>').join('')+'</span>'+(VS.sudden?'':'<em>'+(TB_KICKS-VS.kicks[VS.turn])+' left</em>');
   if(fresh){e.classList.remove('pop');void e.offsetWidth;e.classList.add('pop')}
 }
+/* turn pill / round-over names: pass-and-play has two players on one screen; online the red side is your friend */
+function sideName(s){if(OPP.mode==='local')return s==='p'?'PLAYER 1':'PLAYER 2';return s==='p'?'YOUR TURN':OPP.mode==='net'?"FRIEND'S TURN":"OPPONENT'S TURN"}
 /* Open one shut, re-glazed window: not one that just closed, and preferably away from the open ones. */
 function openOne(gold){
   const ready=panes.filter(p=>p.vs&&p.shutGoal===1&&p.shutK>=1&&!p.broken);
@@ -128,8 +128,9 @@ function endRound(){
   if(clock)clock.set(0,true,false);sfx.boom();
   panes.forEach((p,i)=>{if(p.vs&&p.shutGoal===0)later(.2+i*.04,()=>closeWin(p))});
   const pw=VS.score.p>VS.score.bot;
-  later(.7,()=>{$('winWord').textContent=pw?'YOU WIN!':'OPPONENT WINS';$('win').classList.toggle('lose',!pw);$('win').hidden=false;
-    if(pw){burstConfetti();sfx.win()}else sfx.lost();
+  const loc=OPP.mode==='local',word=loc?(pw?'PLAYER 1 WINS':'PLAYER 2 WINS'):pw?'YOU WIN!':OPP.mode==='net'?'FRIEND WINS':'OPPONENT WINS';
+  later(.7,()=>{$('winWord').textContent=word;$('win').classList.toggle('lose',!pw);$('win').hidden=false;
+    if(pw||loc){burstConfetti();sfx.win()}else sfx.lost();
     later(.9,()=>{$('again').hidden=false})});
 }
 /* The two small scores at the top (blue = you, red = the bot); the scorer's number bumps. Hidden outside VS. */
@@ -141,7 +142,7 @@ function drawScore(who){
 }
 /* "+1" (or "+3" for gold) rising and fading over the scorer's kick spot, in their colour. */
 function gainPop(who,pts){
-  const s=who==='p'?toScreen(0,R+1.1,D):toScreen(BX,2.7,BZ),d=document.createElement('div');
+  const s=who==='p'?toScreen(PX,R+1.1,D):toScreen(BX,OPP.mode==='bot'?2.7:R+1.1,BZ),d=document.createElement('div');
   d.className='gain '+(who==='p'?'you':'bot')+(pts>1?' big':'');d.textContent='+'+pts;
   d.style.left=clamp(s[0],40,W_-40)+'px';d.style.top=clamp(s[1],60,H_-30)+'px';$('stage').appendChild(d);setTimeout(()=>d.remove(),1200);
 }

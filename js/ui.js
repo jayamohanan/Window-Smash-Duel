@@ -17,13 +17,15 @@ function buildSliders(){
   vis.forEach(a=>{const i=$('s_'+a[0]),o=$('o_'+a[0]);i.value=S[a[0]];o.textContent=S[a[0]];i.oninput=()=>{S[a[0]]=+i.value;o.textContent=i.value;save();chips()}});
 }
 $('gear').onclick=()=>{$('panel').hidden=!$('panel').hidden};
-document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>{S.mode=b.dataset.mode;save();buildSliders();chips();reloadLevel()});
-document.querySelectorAll('[data-lvl]').forEach(b=>b.onclick=()=>loadLevel(+b.dataset.lvl));
+/* online, both devices must play the same round: nothing here may reload it */
+const offline=()=>OPP.mode!=='net';
+document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>{S.mode=b.dataset.mode;save();buildSliders();chips();if(offline())reloadLevel()});
+document.querySelectorAll('[data-lvl]').forEach(b=>b.onclick=()=>{if(offline())loadLevel(+b.dataset.lvl)});
 document.querySelectorAll('[data-bot]').forEach(b=>b.onclick=()=>{Object.assign(S,BOT_PRESETS[b.dataset.bot]);save();buildSliders();chips()});
-document.querySelectorAll('[data-turns]').forEach(b=>b.onclick=()=>{S.turns=+b.dataset.turns;save();chips();reloadLevel()});
+document.querySelectorAll('[data-turns]').forEach(b=>b.onclick=()=>{S.turns=+b.dataset.turns;save();chips();if(offline())reloadLevel()});
 $('glSky').onclick=()=>{S.glSky=!S.glSky;save();chips()};
 $('glGlint').onclick=()=>{S.glints=!S.glints;save();chips()};
-$('sandbox').onclick=()=>loadSandbox();
+$('sandbox').onclick=()=>{if(offline())loadSandbox()};
 $('soundBtn').onclick=()=>{initAudio();S.sound=!S.sound;save();chips()};
 $('retryBtn').onclick=()=>{initAudio();$('panel').hidden=true;setPause(false);restart()};
 $('pauseBtn').onclick=()=>{initAudio();$('panel').hidden=true;setPause(!paused)};
@@ -31,13 +33,34 @@ $('resume').onclick=()=>{initAudio();setPause(false)};
 document.addEventListener('visibilitychange',()=>{if(document.hidden)setPause(true)});
 $('reset').onclick=()=>{S=Object.assign({},DEF);save();buildSliders();chips()};
 $('copy').onclick=()=>{const txt=JSON.stringify(S),box=$('copyBox');const fb=()=>{box.hidden=false;box.value=txt;box.select()};$('copy').textContent='Copied';setTimeout(()=>$('copy').textContent='Copy values',1100);try{navigator.clipboard.writeText(txt).catch(fb)}catch(e){fb()}};
-$('again').onclick=()=>{initAudio();restart()};
-$('tap').onclick=tapToPlay;
+$('again').onclick=()=>{initAudio();netAgain();restart()};
+/* ---------- menu: who you play. The round waits behind it (vs.js start gate) until a mode is picked. ---------- */
+function showMenu(v){const m=$('menu');m.hidden=false;m.querySelectorAll('.mcard').forEach(c=>c.hidden=c.dataset.v!==v)}
+function hideMenu(){$('menu').hidden=true}
+function showMsg(h,p,o){$('msgH').textContent=h;$('msgP').textContent=p||'';$('mMsgBot').hidden=!(o&&o.bot);showMenu('msg')}
+/* start a round against the robot ('bot'), a second player on this device ('local') or the connected friend ('net') */
+function startMode(mode){
+  if(mode!=='net')netClose();
+  OPP.mode=mode;tapped=true;initAudio();hideMenu();startGo=null;setPause(false);
+  $('retryBtn').hidden=mode==='net'; /* online, a new round comes from Play again on both sides */
+  loadLevel(level);
+}
+function goMenu(){netClose();OPP.mode='bot';tapped=false;setPause(false);$('retryBtn').hidden=false;showMenu('main');loadLevel(level)}
+$('mBot').onclick=()=>startMode('bot');
+$('mLocal').onclick=()=>startMode('local');
+$('mFriend').onclick=()=>{initAudio();showMenu('friend')};
+$('mCreate').onclick=()=>{initAudio();netHost()};
+$('joinForm').onsubmit=e=>{e.preventDefault();initAudio();netJoin($('code').value)};
+$('mCopy').onclick=shareCode;
+$('mMsgBot').onclick=()=>startMode('bot');
+document.querySelectorAll('[data-back]').forEach(b=>b.onclick=()=>{initAudio();goMenu()});
+$('homeBtn').onclick=()=>{initAudio();$('panel').hidden=true;goMenu()};
 /* number keys jump to an arena: digits within 350 ms of each other make one number; unknown numbers do nothing */
 let numBuf='',numT=0;
 function numKey(d){numBuf+=d;clearTimeout(numT);const go=()=>{const n=+numBuf;numBuf='';if(n>=1&&n<=LV.length)loadLevel(n-1)};if(numBuf.length>=2)go();else numT=setTimeout(go,350)}
 addEventListener('keydown',e=>{if(/INPUT|TEXTAREA/.test(e.target.tagName))return;
-  if(!tapped){if(e.key===' '||e.key==='Enter'){e.preventDefault();tapToPlay()}return}if(/^[0-9]$/.test(e.key)&&!e.ctrlKey&&!e.metaKey&&!e.altKey){numKey(e.key);return}
+  if(!tapped||(!offline()&&/^[0-9mMrR]$/.test(e.key)))return; /* menu up: its buttons take the keys; online: no reloads */
+  if(/^[0-9]$/.test(e.key)&&!e.ctrlKey&&!e.metaKey&&!e.altKey){numKey(e.key);return}
   if(e.key==='m'||e.key==='M'){const o=['live','livep','aim','shape'];S.mode=o[(o.indexOf(S.mode)+1)%o.length];save();buildSliders();chips();reloadLevel();pop('Control: '+S.mode,0,4,0,true)}
   else if(e.key==='p'||e.key==='P'||e.key==='Escape')setPause(!paused);
   else if(e.key==='r'||e.key==='R'){setPause(false);reloadLevel()}
@@ -48,6 +71,8 @@ addEventListener('resize',()=>{if(!$('turn').hidden)placeTurn()});
 buildSliders();
 layout();
 loadLevel(0);
+/* an invite link (?room=CODE) opens straight on the join screen with the code filled in */
+{const room=new URLSearchParams(location.search).get('room');if(room){$('code').value=room.slice(0,12);showMenu('friend')}else showMenu('main')}
 requestAnimationFrame(frame);
 /* Loading screen: once the first frames are drawn (and at least ~0.8 s in, so it doesn't flash) the bar runs up to 100%, then fades out. */
 requestAnimationFrame(()=>requestAnimationFrame(()=>setTimeout(()=>{window.ldDone=true;const w=()=>{const l=$('loader');if(!l)return;if(!window.ldFull)return requestAnimationFrame(w);setTimeout(()=>{l.classList.add('done');setTimeout(()=>l.remove(),500)},180)};w()},Math.max(0,800-performance.now()))));

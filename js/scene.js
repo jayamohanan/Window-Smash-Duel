@@ -41,8 +41,14 @@ const spot=kickSpot(0x3f8fe0),botSpot=kickSpot(0xe2513f);botSpot.visible=false;
 /* ---------- camera layout ---------- */
 let gainX=.02,gainHigh=.02,gainLow=.01;const KNEE=3;
 const camBase=new T.Vector3();let W_=1,H_=1,camLook=new T.Vector3(0,3,0);
-/* the bot's kick spot: a little nearer the wall than the player's and to the right, kept on screen in portrait */
-let BX=2.4,BZ=11.4;
+/* Kick spots: mirror images at the same distance from the wall, one centred in front of each half (x = -SX blue, +SX red),
+   pulled in on narrow screens so both stay in view. Outside VS (sandbox) your spot is in the middle. */
+let BX=2.4,BZ=13,PX=0,SX=2.4;
+function placeSpots(){
+  PX=LVL&&LVL.vs?-SX:0;BX=SX;BZ=D;spot.position.set(PX,0,D);botSpot.position.set(BX,0,BZ);
+  if(cur){cur.p.set(cur.owner==='bot'?BX:PX,cur.p.y,D);cur.sh.position.set(cur.p.x,.04,D)}
+  placeBot();
+}
 function layout(){
   W_=$('stage').clientWidth||innerWidth;H_=$('stage').clientHeight||innerHeight;const a=W_/H_;
   renderer.setSize(W_,H_,false);const dpr=Math.min(devicePixelRatio||1,2);fx.width=W_*dpr;fx.height=H_*dpr;fctx.setTransform(dpr,0,0,dpr,0,0);
@@ -51,15 +57,14 @@ function layout(){
   z+=2; /* camera a little further back so the ball sits higher on screen (D unchanged) */
   camera.fov=fov;camera.aspect=a;camera.updateProjectionMatrix();camBase.set(0,3.2,z);camera.position.copy(camBase);camera.lookAt(camLook);camera.updateMatrixWorld();
   gainHigh=gainX=2*Math.tan(fov/2*Math.PI/180)*z/H_;gainLow=(KNEE-R)/Math.max(60,toScreen(0,R,D)[1]-toScreen(0,KNEE,ZF)[1]);
-  spot.position.set(0,0,D);if(cur){cur.p.z=D;cur.m.position.z=D;cur.sh.position.z=D}
-  BZ=D-1.6;BX=clamp(Math.tan(fov/2*Math.PI/180)*a*(camBase.z-BZ)*.55,1.6,3.6);botSpot.position.set(BX,0,BZ);placeBot();
+  SX=clamp(Math.tan(fov/2*Math.PI/180)*a*(camBase.z-D)*.55,1.6,3.4);placeSpots();
   sun.target.position.set(0,0,4);scene.add(sun.target);updateHint();
 }
 const proj=new T.Vector3();
 function toScreen(x,y,z){proj.set(x,y,z).project(camera);return[(proj.x+1)/2*W_,(1-proj.y)/2*H_]}
 function updateHint(){
   if(!LVL)return;const t=panes.find(isOpen),show=!hintDone&&!sandbox&&!won&&!!LVL.tut&&!!t;$('hint').hidden=!show;if(!show)return;
-  const a=toScreen(0,.3,D),b=toScreen(t.x,t.y,0),h=$('hint');
+  const a=toScreen(PX,.3,D),b=toScreen(t.x,t.y,0),h=$('hint');
   h.style.setProperty('--x0',a[0]+'px');h.style.setProperty('--y0',(a[1]-16)+'px');h.style.setProperty('--x1',b[0]+'px');h.style.setProperty('--y1',b[1]+'px');
 }
 

@@ -16,8 +16,10 @@ function grid(xs,ys,w,h,extra){const a=[];ys.forEach(y=>xs.forEach(x=>{a.push(Ob
 const LV=[
  {name:'Windmill Facade',type:'facade',vs:true,tut:true,W:7.3,H:9.2,
   prize:{first:8,every:[10,15],stay:6,pts:3},
-  mills:[{x:-3.4,y:5.85,z:1.6,len:2.6,speed:.8,dir:1,plate:.45},{x:3.4,y:3.15,z:1.6,len:2.6,speed:1,dir:-1,plate:.45}],
-  panes:grid([-5.1,-1.7,1.7,5.1],[1.8,4.5,7.2],2.4,1.8,{4:{hp:2},11:{hp:2}})}
+  /* mirror-symmetric, so both halves play the same: one mill centred on each half at mid-height, turning opposite ways at
+     the same speed; the wired (two-kick) windows are the outer middle pair */
+  mills:[{x:-3.4,y:4.5,z:1.6,len:2.6,speed:.9,dir:1,plate:.45},{x:3.4,y:4.5,z:1.6,len:2.6,speed:.9,dir:-1,plate:.45}],
+  panes:grid([-5.1,-1.7,1.7,5.1],[1.8,4.5,7.2],2.4,1.8,{4:{hp:2},7:{hp:2}})}
 ];
 
 let level=0,LVL=null,group=null,panes=[],won=false,cur=null,D=13,hintDone=false;
@@ -45,7 +47,7 @@ function clearLevel(){
   debris.forEach(d=>scene.remove(d.m));debris.length=0;
   balls.forEach(removeBallMesh);balls.length=0;
   if(cur){removeBallMesh(cur);cur=null}
-  botClear();
+  botClear();netClear();
   spark.clear();dust.clear();timers=[];$('win').hidden=true;$('again').hidden=true;$('wipe').classList.remove('on');
   retrying=false;confetti.length=0;fctx.clearRect(0,0,W_,H_);
   obs=[];movers=[];lt=0;wind=0;wheel=null;hinges=[];clock=null;VS.on=false;
@@ -82,7 +84,7 @@ function buildFacade(L){
   [-1,1].forEach(s=>box(.4,H+.3,.62,0xd8bf95,s*(W+.05),(H+.3)/2,ZF-.19,g)); /* corner posts */
   panes.forEach(p=>{makeFrame(p,g,p.fc||FRAME);makePane(p,g);
     if(p.side)p.inner=roomBehind(p,g)});
-  if(!(L.vs&&S.turns>0))clock=buildClock(0,H+ph,1); /* turn mode has no clock: the footballs in the turn pill count kicks */
+  if(!tb)clock=buildClock(0,H+ph,1); /* turn mode has no clock: the footballs in the turn pill count kicks */
 }
 /* Is (x,y) on the facade's solid wall (the window holes are checked before this)? */
 function facadeAt(x,y){const W=LVL.W,H=LVL.H;if(Math.abs(x)>W+.25||y<0)return false;if(tbOn())return y<=H+.05;if(y<=H+.05)return true;if(Math.abs(x)>PED.w)return false;const dy=y-H-PED.h;return dy<=0||Math.hypot(x,dy)<=PED.w+.05}
@@ -118,17 +120,17 @@ function buildStand(L){
 function loadLevel(i){
   clearLevel();sandbox=false;level=(i+LV.length)%LV.length;LVL=LV[level];
   group=new T.Group();scene.add(group);
-  panes=(LVL.layout?LVL.layout():LVL.panes).map(p=>Object.assign({},p));if(LVL.vs&&S.turns>0)turnPanes(panes);lt=0;wind=LVL.wind||0;
+  panes=(LVL.layout?LVL.layout():LVL.panes).map(p=>Object.assign({},p));if(tbOn())turnPanes(panes);placeSpots();lt=0;wind=LVL.wind||0;
   if(LVL.type==='facade')buildFacade(LVL);else if(LVL.type==='stand')buildStand(LVL);
   buildMech(LVL);
   won=false;
-  spawnBall();if(LVL.vs)vsStart(LVL);else drawScore();
+  if(LVL.vs)vsStart(LVL);else drawScore();spawnBall(); /* after vsStart: the first ball goes to whoever kicks first */
   updateHint();chips();
 }
 /* Dev sandbox: empty yard with unlimited balls, for testing kick feel and juice (no bot, no round). */
 let sandbox=false;
 function loadSandbox(){
-  clearLevel();sandbox=true;LVL={name:'Sandbox',type:'sandbox',panes:[]};
+  clearLevel();sandbox=true;LVL={name:'Sandbox',type:'sandbox',panes:[]};placeSpots();
   group=new T.Group();scene.add(group);panes=[];
   buildTestPanes();
   won=false;

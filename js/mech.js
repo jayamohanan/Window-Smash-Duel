@@ -40,7 +40,7 @@ function obHit(b,o,imp){
   b.a.set(0,-S.gravity,0);
   if(b.state==='fly'||b.state==='ground'){b.state='bounce';b.age=Math.min(b.age,.4)}
   if(imp<2.5)return;
-  const k=OBK[o.kind];sfx[k.snd]();addShake(Math.min(.25,imp*.012));
+  const k=OBK[o.kind];sfx[k.snd]();netSfx(b,k.snd);addShake(Math.min(.25,imp*.012));
   if(o.kind==='metal')for(let i=0;i<16;i++)spark.emit(b.p.x,b.p.y,b.p.z,rnd(-4,4),rnd(-2,4),rnd(-1,4),rnd(.15,.35),[1,.85,.45],6);
   for(let i=0;i<12;i++)dust.emit(b.p.x,b.p.y,b.p.z,rnd(-2,2),rnd(-1,2.4),rnd(0,2),rnd(.25,.5),[.92,.8,.6],2);
 }
@@ -344,9 +344,9 @@ function buildGantry(o){
 }
 
 /* ---------- aim help targets: open windows, plus the spot that swings a closed blocker ---------- */
-function aimTargets(){
-  const a=[];
-  panes.forEach(p=>{if(!isOpen(p)||p.oneWay||p.narrow||p.aimOff||(VS.tb&&p.side==='bot'))return; /* turn mode: the help never pulls toward the opponent's half */
+function aimTargets(b){
+  const a=[],side=b?b.owner:'p';
+  panes.forEach(p=>{if(!isOpen(p)||p.oneWay||p.narrow||p.aimOff||(VS.tb&&p.side!==side))return; /* turn mode: the help never pulls toward the other half */
     a.push({x:p.c?p.c.x:p.x,y:p.c?p.c.y:p.y,z:p.c?p.c.z:ZF,w:p.w,h:p.h,vx:p.vx||0})});
   hinges.forEach(hg=>{if(!hg.open&&hg.aim)a.push(hg.aim)});
   return a;
