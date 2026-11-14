@@ -56,6 +56,7 @@ function turnPanes(ps){ps.forEach(p=>{if(!p.vs)return;delete p.shutter;delete p.
 const halfCount=who=>panes.filter(p=>p.vs&&p.side===who).length;
 function beginTurn(who){
   if(VS.over)return;
+  VS.blink=localHuman(who); /* "YOUR TURN" blinks until the ball is grabbed (turnGrab) */
   VS.turn=who;VS.left=VS.turnN=VS.sudden?1:Math.min(turnsPer(),TB_KICKS-VS.kicks[who]);VS.ending=false;
   if(who==='bot'&&OPP.mode==='bot')botStart();else botStop();
   if(cur&&cur.owner!==who){removeBallMesh(cur);cur=null} /* pass-and-play: the waiting ball moves to the other spot */
@@ -75,18 +76,41 @@ function endTurn(){
   if(VS.kicks.p>=TB_KICKS&&VS.kicks.bot>=TB_KICKS){if(VS.score.p!==VS.score.bot){endRound();return}if(!VS.sudden){VS.sudden=true;sfx.ding()}}
   beginTurn('p');
 }
-/* "YOUR TURN" / "OPPONENT'S TURN" pill centred on the grass just in front of the kick spots, one football per kick in the turn (used ones fade). */
-function placeTurn(){const y=toScreen(0,0,D+1.3)[1]+4;$('turn').style.top=Math.round(clamp(y,80,H_-46))+'px'}
+/* Turn mode HUD, pinned to the kick spots (placeTags runs every frame, so it follows the camera):
+   - the turn label ("YOUR TURN" / "FRIEND'S TURN" / "PLAYER 2" …) floats above the kicking side's ball (above the robot's head);
+     on a turn played on this device it blinks until that player grabs the ball;
+   - each side's footballs for its turn (used ones fade) plus its kicks left: yours to the left of your spot, the
+     opponent's to the right of theirs (below the spot when there's no room); dimmed while it isn't their turn. */
+const BALL_ICON='<svg viewBox="-24 -24 48 48" aria-hidden="true"><use href="#ballIcon"/></svg>';
 function turnLabel(fresh){
-  const e=$('turn'),show=VS.on&&VS.tb&&!VS.over&&!!VS.turn&&!sandbox;e.hidden=!show;if(!show)return;
-  const you=VS.turn==='p',n=VS.turnN||1;
-  e.className=you?'you':'bot';placeTurn();
-  const ball='<svg viewBox="-24 -24 48 48" aria-hidden="true"><use href="#ballIcon"/></svg>';
-  e.innerHTML=(VS.sudden?'SUDDEN DEATH · ':'')+sideName(VS.turn)+' <span aria-label="'+VS.left+' kicks left">'+Array.from({length:n},(_,i)=>'<i'+(i<VS.left?' class="on"':'')+'>'+ball+'</i>').join('')+'</span>'+(VS.sudden?'':'<em>'+(TB_KICKS-VS.kicks[VS.turn])+' left</em>');
-  if(fresh){e.classList.remove('pop');void e.offsetWidth;e.classList.add('pop')}
+  const show=VS.on&&VS.tb&&!VS.over&&!sandbox;$('tags').hidden=!show;if(!show)return;
+  ['p','bot'].forEach(s=>{
+    const on=VS.turn===s,L=$(s==='p'?'tlP':'tlB'),K=$(s==='p'?'kkP':'kkB');
+    L.hidden=!on;
+    if(on){L.textContent=(VS.sudden?'SUDDEN DEATH · ':'')+sideName(s);L.classList.toggle('blink',!!VS.blink);
+      if(fresh){L.classList.remove('pop');void L.offsetWidth;L.classList.add('pop')}}
+    const n=on?VS.turnN||1:VS.sudden?1:Math.max(1,Math.min(turnsPer(),TB_KICKS-VS.kicks[s])),left=on?VS.left:n;
+    K.classList.toggle('idle',!on);
+    K.innerHTML='<span aria-label="'+left+' kicks this turn">'+Array.from({length:n},(_,i)=>'<i'+(i<left?' class="on"':'')+'>'+BALL_ICON+'</i>').join('')+'</span>'+(VS.sudden?'':'<em>'+Math.max(0,TB_KICKS-VS.kicks[s])+' left</em>');
+  });
+  placeTags();
 }
+function placeTags(){
+  if($('tags').hidden)return;
+  [['p',PX,'tlP','kkP',-1],['bot',BX,'tlB','kkB',1]].forEach(([s,x,l,k,dir])=>{
+    const L=$(l);
+    if(!L.hidden){const a=toScreen(x,s==='bot'&&OPP.mode==='bot'?3.1:2*R+.32,D),hw=L.offsetWidth/2;L.style.left=clamp(a[0],hw+8,W_-hw-8)+'px';L.style.top=Math.max(a[1],96)+'px'}
+    const K=$(k),w=K.offsetWidth,h=K.offsetHeight,b=toScreen(x+dir*1.5,R,D),c=toScreen(x,0,D);
+    let left=dir<0?b[0]-w:b[0],top=b[1]-h/2;
+    /* no room at the side: just below the spot, if the spot is on screen (else it stays at the screen edge on its side) */
+    if((left<8||left+w>W_-8)&&c[0]>0&&c[0]<W_){const u=toScreen(x,0,D+1.3);left=u[0]-w/2;top=u[1]}
+    K.style.left=clamp(left,8,W_-w-8)+'px';K.style.top=clamp(top,60,H_-h-8)+'px';
+  });
+}
+/* the player whose turn it is pressed on their ball: stop the blinking */
+function turnGrab(){if(VS.blink){VS.blink=false;turnLabel(false)}}
 /* turn pill / round-over names: pass-and-play has two players on one screen; online the red side is your friend */
-function sideName(s){if(OPP.mode==='local')return s==='p'?'PLAYER 1':'PLAYER 2';return s==='p'?'YOUR TURN':OPP.mode==='net'?"FRIEND'S TURN":"OPPONENT'S TURN"}
+function sideName(s){if(OPP.mode==='local')return s==='p'?'PLAYER 1':'PLAYER 2';return s==='p'?'YOUR TURN':OPP.mode==='net'&&!OPP.quick?"FRIEND'S TURN":"OPPONENT'S TURN"}
 /* Open one shut, re-glazed window: not one that just closed, and preferably away from the open ones. */
 function openOne(gold){
   const ready=panes.filter(p=>p.vs&&p.shutGoal===1&&p.shutK>=1&&!p.broken);
@@ -124,18 +148,18 @@ function onBreak(p,b){
 }
 function endRound(){
   if(VS.over||!VS.on)return;VS.over=true;won=true;winAt=performance.now();botStop();
-  if(drag){drag=null;hidePreview()}$('hint').hidden=true;$('turn').hidden=true;
+  if(drag){drag=null;hidePreview()}$('hint').hidden=true;$('tags').hidden=true;
   if(clock)clock.set(0,true,false);sfx.boom();
   panes.forEach((p,i)=>{if(p.vs&&p.shutGoal===0)later(.2+i*.04,()=>closeWin(p))});
   const pw=VS.score.p>VS.score.bot;
-  const loc=OPP.mode==='local',word=loc?(pw?'PLAYER 1 WINS':'PLAYER 2 WINS'):pw?'YOU WIN!':OPP.mode==='net'?'FRIEND WINS':'OPPONENT WINS';
+  const loc=OPP.mode==='local',word=loc?(pw?'PLAYER 1 WINS':'PLAYER 2 WINS'):pw?'YOU WIN!':OPP.mode==='net'&&!OPP.quick?'FRIEND WINS':'OPPONENT WINS';
   later(.7,()=>{$('winWord').textContent=word;$('win').classList.toggle('lose',!pw);$('win').hidden=false;
     if(pw||loc){burstConfetti();sfx.win()}else sfx.lost();
-    later(.9,()=>{$('again').hidden=false})});
+    later(.9,()=>{$('again').hidden=false;if(OPP.mode==='net'&&OPP.quick)rematchUi(NET.peer?(NET.rmThem?'ask':'idle'):'left')})});
 }
 /* The two small scores at the top (blue = you, red = the bot); the scorer's number bumps. Hidden outside VS. */
 function drawScore(who){
-  const on=VS.on&&!sandbox;$('score').hidden=!on;if(!on){$('turn').hidden=true;return}
+  const on=VS.on&&!sandbox;$('score').hidden=!on;if(!on){$('tags').hidden=true;return}
   if(VS.tb){$('scP').innerHTML=VS.score.p+'<small>/'+halfCount('p')+'</small>';$('scB').innerHTML=VS.score.bot+'<small>/'+halfCount('bot')+'</small>'}
   else{$('scP').textContent=VS.score.p;$('scB').textContent=VS.score.bot}
   if(who){const e=$(who==='p'?'scP':'scB');e.classList.remove('bump');void e.offsetWidth;e.classList.add('bump')}

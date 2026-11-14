@@ -33,21 +33,24 @@ $('resume').onclick=()=>{initAudio();setPause(false)};
 document.addEventListener('visibilitychange',()=>{if(document.hidden)setPause(true)});
 $('reset').onclick=()=>{S=Object.assign({},DEF);save();buildSliders();chips()};
 $('copy').onclick=()=>{const txt=JSON.stringify(S),box=$('copyBox');const fb=()=>{box.hidden=false;box.value=txt;box.select()};$('copy').textContent='Copied';setTimeout(()=>$('copy').textContent='Copy values',1100);try{navigator.clipboard.writeText(txt).catch(fb)}catch(e){fb()}};
-$('again').onclick=()=>{initAudio();netAgain();restart()};
+$('again').onclick=()=>{initAudio();if(OPP.mode==='net'&&OPP.quick){netQuick();return} /* stranger: Play again = a new match */netAgain();restart()};
+$('rematch').onclick=()=>{initAudio();netRematch()};
 /* ---------- menu: who you play. The round waits behind it (vs.js start gate) until a mode is picked. ---------- */
 function showMenu(v){const m=$('menu');m.hidden=false;m.querySelectorAll('.mcard').forEach(c=>c.hidden=c.dataset.v!==v)}
 function hideMenu(){$('menu').hidden=true}
-function showMsg(h,p,o){$('msgH').textContent=h;$('msgP').textContent=p||'';$('mMsgBot').hidden=!(o&&o.bot);showMenu('msg')}
+function showMsg(h,p,o){$('msgH').textContent=h;$('msgP').textContent=p||'';$('mMsgBot').hidden=!(o&&o.bot);$('mRetry').hidden=!(o&&o.retry);showMenu('msg')}
 /* start a round against the robot ('bot'), a second player on this device ('local') or the connected friend ('net') */
 function startMode(mode){
   if(mode!=='net')netClose();
-  OPP.mode=mode;tapped=true;initAudio();hideMenu();startGo=null;setPause(false);
+  OPP.mode=mode;OPP.quick=mode==='net'&&NET.quick;tapped=true;initAudio();hideMenu();startGo=null;setPause(false);
   $('retryBtn').hidden=mode==='net'; /* online, a new round comes from Play again on both sides */
   loadLevel(level);
 }
 function goMenu(){netClose();OPP.mode='bot';tapped=false;setPause(false);$('retryBtn').hidden=false;showMenu('main');loadLevel(level)}
 $('mBot').onclick=()=>startMode('bot');
 $('mLocal').onclick=()=>startMode('local');
+$('mOnline').onclick=()=>{initAudio();netQuick()};
+$('mRetry').onclick=()=>{initAudio();netQuick()};
 $('mFriend').onclick=()=>{initAudio();showMenu('friend')};
 $('mCreate').onclick=()=>{initAudio();netHost()};
 $('joinForm').onsubmit=e=>{e.preventDefault();initAudio();netJoin($('code').value)};
@@ -66,7 +69,6 @@ addEventListener('keydown',e=>{if(/INPUT|TEXTAREA/.test(e.target.tagName))return
   else if(e.key==='r'||e.key==='R'){setPause(false);reloadLevel()}
   else if((e.key===' '||e.key==='Enter')&&won){e.preventDefault();vsTap()}});
 addEventListener('resize',layout);
-addEventListener('resize',()=>{if(!$('turn').hidden)placeTurn()});
 
 buildSliders();
 layout();

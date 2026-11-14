@@ -3,7 +3,7 @@
 let winAt=0,retrying=false,spawnWait=0;
 /* Retry button / end-of-round tap: a quick fade, then the same arena from the start. */
 function restart(){if(retrying)return;retrying=true;$('wipe').classList.add('on');later(.2,reloadLevel)}
-function vsTap(){if(performance.now()-winAt>1300){netAgain();restart()}}
+function vsTap(){if(OPP.mode==='net'&&OPP.quick)return; /* stranger: the buttons choose new match or rematch */if(performance.now()-winAt>1300){netAgain();restart()}}
 /* ---------- pause: the whole game stops (balls, bot, clock, timers) and a card offers Resume. Also pauses itself when the
    tab is hidden. P / Esc toggle it. ---------- */
 let paused=false;
@@ -80,7 +80,7 @@ function frame(now){
 function tick(dt,real){
   const tl=timers; /* a timer can load a level, which replaces the list */
   for(let i=tl.length-1;i>=0&&tl===timers;i--){tl[i].t-=real;if(tl[i].t<=0){const f=tl[i].f;tl.splice(i,1);f()}}
-  mechTick(dt);glareTick(real);vsTick(dt);botTick(dt);
+  mechTick(dt);glareTick(real);vsTick(dt);botTick(dt);kidTick(dt);
   /* the player's next ball appears once their last one is no longer in flight */
   const ks=kickSide();
   if(isLive()&&!cur&&!won&&ks&&!balls.some(b=>b.owner===ks&&b.state==='fly')){spawnWait+=real;if(spawnWait>.22){spawnWait=0;spawnBall()}}else spawnWait=0;
@@ -107,8 +107,9 @@ function tick(dt,real){
   stepConfetti(real);
   shakeA=Math.max(0,shakeA-real*2.6);zoomK=Math.max(0,zoomK-real*3.2);focusK=Math.max(0,focusK-real*1.5);
   const sx=(Math.random()-.5)*shakeA*.75,sy=(Math.random()-.5)*shakeA*.75,fk=focusK*focusK;
-  camera.position.set(camBase.x+sx+focus.x*fk*.1,camBase.y+sy+focus.y*fk*.03,camBase.z-fk*1.5);
-  const lx=lerp(camLook.x,focus.x,fk*.2),ly=lerp(camLook.y,focus.y,fk*.12);
+  camera.position.set(camBase.x+camX+sx+focus.x*fk*.1,camBase.y+sy+focus.y*fk*.03,camBase.z-fk*1.5);
+  const lx=lerp(camLook.x+camX,focus.x,fk*.2),ly=lerp(camLook.y,focus.y,fk*.12);
   camera.lookAt(lx,ly,0);
-  camera.zoom=1+zoomK*zoomK*.07;camera.updateProjectionMatrix();
+  camera.zoom=1+zoomK*zoomK*.07;camera.updateProjectionMatrix();camera.updateMatrixWorld();
+  placeTags();
 }

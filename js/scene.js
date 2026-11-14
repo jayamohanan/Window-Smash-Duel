@@ -41,13 +41,22 @@ const spot=kickSpot(0x3f8fe0),botSpot=kickSpot(0xe2513f);botSpot.visible=false;
 /* ---------- camera layout ---------- */
 let gainX=.02,gainHigh=.02,gainLow=.01;const KNEE=3;
 const camBase=new T.Vector3();let W_=1,H_=1,camLook=new T.Vector3(0,3,0);
+/* Camera x (added to camBase / camLook). It never moves during a round (moving cameras make players motion-sick):
+   straight behind your ball vs the robot or online, so a straight-up swipe goes straight ahead and your half is in
+   front of you; on the middle of the wall in pass-and-play (two players share the screen) and the sandbox. */
+let camX=0;
+const camGoal=()=>!LVL||!LVL.vs||sandbox||OPP.mode==='local'?0:PX;
 /* Kick spots: mirror images at the same distance from the wall, one centred in front of each half (x = -SX blue, +SX red),
    pulled in on narrow screens so both stay in view. Outside VS (sandbox) your spot is in the middle. */
-let BX=2.4,BZ=13,PX=0,SX=2.4;
+let BX=2.4,BZ=13,PX=0,SX=2.4,SHW=4;
 function placeSpots(){
-  PX=LVL&&LVL.vs?-SX:0;BX=SX;BZ=D;spot.position.set(PX,0,D);botSpot.position.set(BX,0,BZ);
+  /* SHW = half the view's width at the kick spots. With the camera behind you (robot / online) the spots come in
+     until the opponent's spot still fits at the right edge (phones in portrait); pass-and-play keeps them wider. */
+  const w=clamp(SHW*.55,1.6,3.4);SX=OPP.mode==='local'?w:Math.min(w,Math.max(.9,(SHW-.6)/2));
+  PX=LVL&&LVL.vs?-SX:0;camX=camGoal();
+  const ks=LVL&&LVL.vs?Math.min(1,(SX-.08)/1.15):1;spot.scale.setScalar(ks);botSpot.scale.setScalar(ks); /* close spots (portrait): smaller discs, so they don't overlap */BX=SX;BZ=D;spot.position.set(PX,0,D);botSpot.position.set(BX,0,BZ);
   if(cur){cur.p.set(cur.owner==='bot'?BX:PX,cur.p.y,D);cur.sh.position.set(cur.p.x,.04,D)}
-  placeBot();
+  placeBot();placeKids();
 }
 function layout(){
   W_=$('stage').clientWidth||innerWidth;H_=$('stage').clientHeight||innerHeight;const a=W_/H_;
@@ -57,7 +66,7 @@ function layout(){
   z+=2; /* camera a little further back so the ball sits higher on screen (D unchanged) */
   camera.fov=fov;camera.aspect=a;camera.updateProjectionMatrix();camBase.set(0,3.2,z);camera.position.copy(camBase);camera.lookAt(camLook);camera.updateMatrixWorld();
   gainHigh=gainX=2*Math.tan(fov/2*Math.PI/180)*z/H_;gainLow=(KNEE-R)/Math.max(60,toScreen(0,R,D)[1]-toScreen(0,KNEE,ZF)[1]);
-  SX=clamp(Math.tan(fov/2*Math.PI/180)*a*(camBase.z-D)*.55,1.6,3.4);placeSpots();
+  SHW=Math.tan(fov/2*Math.PI/180)*a*(camBase.z-D);placeSpots();
   sun.target.position.set(0,0,4);scene.add(sun.target);updateHint();
 }
 const proj=new T.Vector3();

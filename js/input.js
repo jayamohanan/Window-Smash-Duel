@@ -26,7 +26,7 @@ function showPreview(s){
 }
 const hidePreview=()=>prevDots.forEach(m=>m.visible=false);
 function point(e){const r=canvas.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top,t:performance.now()}}
-canvas.addEventListener('pointerdown',e=>{initAudio();if(paused)return;$('panel').hidden=true;if(won){vsTap();return}if(isLive()){liveDown(e);return}if(!cur||won||cur.born<.12)return;try{canvas.setPointerCapture(e.pointerId)}catch(x){}drag={pts:[point(e)],id:e.pointerId}});
+canvas.addEventListener('pointerdown',e=>{initAudio();if(paused)return;$('panel').hidden=true;if(won){vsTap();return}if(isLive()){liveDown(e);return}if(!cur||won||cur.born<.12)return;try{canvas.setPointerCapture(e.pointerId)}catch(x){}drag={pts:[point(e)],id:e.pointerId};turnGrab()});
 canvas.addEventListener('pointermove',e=>{if(!drag||e.pointerId!==drag.id)return;if(isLive()){liveMove(e);return}drag.pts.push(point(e));if(drag.pts.length>120)drag.pts.splice(1,1);const s=shotFrom(drag);if(s.len>18)showPreview(s);else hidePreview()});
 function release(e){initAudio();if(!drag||e.pointerId!==drag.id)return;if(isLive()){if(drag.go)firePlus(drag);drag=null;return}const d=drag;drag=null;hidePreview();const s=shotFrom(d);if(s.len<30||!cur)return;kick(s)}
 canvas.addEventListener('pointerup',release);canvas.addEventListener('pointercancel',()=>{drag=null;hidePreview()});
@@ -40,6 +40,7 @@ function liveDown(e){
   try{canvas.setPointerCapture(e.pointerId)}catch(x){}
   if(f){drag={id:e.pointerId,pts:[pt],last:pt,top:pt.y,steer:f};return}
   const bp=ballPx();drag={id:e.pointerId,pts:[pt],last:pt,top:pt.y,topX:pt.x,armed:Math.hypot(pt.x-bp.x,pt.y-bp.y)<=bp.r*S.grab};
+  if(drag.armed)turnGrab();
 }
 /* Steering after the kick nudges the ball's velocity (aftertouch); the flight stays a real arc.
    Lift is budgeted per kick so a weak kick still falls short. */
@@ -57,7 +58,7 @@ function liveMove(e){
   if(d.go){const sp=Math.hypot(...Object.values(swipeVel(d)));d.go.pk=Math.max(d.go.pk,sp);
     if(sp<d.go.pk*.3&&pt.t-d.go.t>40)firePlus(d);d.last=pt;return}
   if(cur&&cur.born>=.12){const bp=ballPx();
-    if(!d.armed&&segDist(d.last,pt,bp)<=bp.r*S.grab)d.armed=true;
+    if(!d.armed&&segDist(d.last,pt,bp)<=bp.r*S.grab){d.armed=true;turnGrab()}
     if(d.armed&&pt.y<bp.y&&Math.hypot(pt.x-bp.x,pt.y-bp.y)>=bp.r*S.ring){
       if(S.mode==='livep'){const sv=swipeVel(d);d.go={t:pt.t,pk:Math.hypot(sv.x,sv.y)};setTimeout(()=>{if(drag===d&&d.go)firePlus(d)},400)}
       else kickLive(bp,pt,d);}}
@@ -88,7 +89,7 @@ function kickLive(bp,pt,d,pk){
   balls.push(b);d.steer=b;kickFx(b);
 }
 function kickFx(b){
-  turnKick(b.owner);netKick(b);
+  turnKick(b.owner);netKick(b);kidKick(b.owner,b.v);
   sfx.kick();
   for(let i=0;i<14;i++)dust.emit(b.p.x+rnd(-.3,.3),.1,D+rnd(-.2,.2),rnd(-1.8,1.8),rnd(.6,2.2),rnd(-.5,1.5),rnd(.25,.5),[.72,.6,.42],3);
   addShake(.1);if(!hintDone){hintDone=true;updateHint()}

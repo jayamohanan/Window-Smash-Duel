@@ -8,15 +8,18 @@
      kick (start + velocity), pos (~30 a second, unreliable channel), st (flight state change), end (ball gone),
      hit (window broken, with the spot), sfx (wall / windmill sound).
    The other device draws that ball as a puppet (no physics of its own) and replays the breaks, so both keep the same score.
-   The windmills are kept in step by copying the kicker's mechanics clock (lt) at each kick. Messages are JSON strings. */
+   The windmills are kept in step by copying the kicker's mechanics clock (lt) at each kick. The two screens may place
+   the kick spots differently, so the friend's ball is remapped from their spot to ours (puppetStep). Messages are JSON strings. */
 const GAME_ID='d0eb2e6d-a84f-4577-8470-fa110135d28b'; /* development ID: replace with the Poki game ID before release */
-const NET={nw:null,peer:null,host:false,code:'',id:0,snapT:0,off:Infinity,out:[],in:{},idle:null,timer:0};
+const NET_VER=1; /* bump when the online messages or rules change: quick match only pairs players on the same version */
+const NET={nw:null,peer:null,host:false,code:'',id:0,snapT:0,off:Infinity,out:[],in:{},idle:null,timer:0,
+  quick:false,findT:0,scanT:0,joinT:0,bad:[],rmMe:false,rmThem:false};
 const nowS=()=>performance.now()/1000,r3=v=>Math.round(v*1000)/1000;
 
 function netSend(m,fast){const n=NET.nw;if(!n||!NET.peer)return;try{n.broadcast(fast?'unreliable':'reliable',JSON.stringify(m))}catch(e){}}
 function netClose(){
-  const n=NET.nw;clearTimeout(NET.timer);
-  Object.assign(NET,{nw:null,peer:null,host:false,code:'',off:Infinity,snapT:0});
+  const n=NET.nw;clearTimeout(NET.timer);clearTimeout(NET.findT);clearTimeout(NET.scanT);clearTimeout(NET.joinT);
+  Object.assign(NET,{nw:null,peer:null,host:false,code:'',off:Infinity,snapT:0,quick:false,expect:false,rmMe:false,rmThem:false});
   if(n)try{n.close()}catch(e){}
 }
 /* Something went wrong (or the friend left): drop the connection, put the robot round back behind the menu, say what happened. */
@@ -31,10 +34,14 @@ function netOpen(onReady){
   const nw=new Netlib.Network(GAME_ID);NET.nw=nw;
   const mine=f=>(...a)=>{if(NET.nw===nw)f(...a)}; /* ignore anything from a network we already closed */
   nw.on('ready',mine(onReady));
-  nw.on('connected',mine(peer=>{NET.peer=peer;clearTimeout(NET.timer);
-    if(NET.host){OPP.turns=S.turns>0?S.turns:3;netSend({t:'start',turns:OPP.turns});startMode('net')}
+  nw.on('connected',mine(peer=>{NET.peer=peer;clearTimeout(NET.timer);clearTimeout(NET.findT);clearTimeout(NET.scanT);clearTimeout(NET.joinT);
+    if(NET.quick)NET.host=nw.id<peer.id; /* quick match: either could have opened the lobby; the lower id starts */
+    if(NET.host){OPP.turns=NET.quick?3:S.turns>0?S.turns:3;netSend({t:'start',turns:OPP.turns});startMode('net')} /* strangers: fixed 3-kick turns */
+    else if(NET.quick)$('findSt').textContent='Found a player! Starting…';
     else $('msgP').textContent='Starting…'}));
-  nw.on('disconnected',mine(()=>{if(!NET.peer)return;NET.peer=null;netFail('YOUR FRIEND LEFT','The game has ended.')}));
+  nw.on('disconnected',mine(()=>{if(!NET.peer)return;NET.peer=null;
+    if(OPP.mode==='net'&&OPP.quick&&won){netClose();rematchUi('left');return} /* stranger left after the round: no rematch */
+    netFail(OPP.quick?'YOUR OPPONENT LEFT':'YOUR FRIEND LEFT','The game has ended.')}));
   nw.on('message',mine((peer,ch,data)=>{if(!NET.peer)NET.peer=peer;if(typeof data==='string')netMsg(data)}));
   /* only a lost socket is fatal here; a refused request (e.g. a wrong code) also comes as a signalling error and is handled by its promise */
   nw.on('signalingerror',mine(e=>{if(!NET.peer&&e&&e.type==='socket-error')netFail("COULDN'T CONNECT",'Check your internet connection and try again.')}));
@@ -59,6 +66,50 @@ function netJoin(raw){
       NET.code=info.code;$('msgP').textContent='Connecting to your friend…';
       NET.timer=setTimeout(()=>{if(NET.nw===nw&&!NET.peer)netFail("COULDN'T CONNECT",'Your friend could not be reached. Try again.')},15000)})});
 }
+/* ---------- quick match: play a stranger ----------
+   Netlib's joinOrCreate: join a public lobby of this version with one player waiting, or open one and wait. Two players
+   searching at the same moment may each open their own lobby, so every 3 s a waiting player looks for another open lobby
+   and moves to it if its code sorts lower (only one of the two moves). A player who closed their tab can leave a ghost
+   lobby behind for a while: after joining someone, if no connection comes within 5 s, leave, skip that lobby from then
+   on (NET.bad) and search again. Nobody after 15 s: offer the robot or a retry. */
+const QUICK={v:NET_VER,q:1};
+const quickFilter=()=>Object.assign({playerCount:{$lt:2}},QUICK,NET.bad.length?{code:{$nin:NET.bad}}:{});
+function quickJoin(nw){
+  nw.joinOrCreate({maxPlayers:2,customData:QUICK,filter:quickFilter()}).then(info=>{if(NET.nw!==nw)return;
+    if(!info){netFail("COULDN'T CONNECT",'Check your internet connection and try again.');return}
+    NET.code=info.code;if(info.playerCount>1)quickExpect(nw);quickScan(nw)},()=>{if(NET.nw===nw)netFail("COULDN'T CONNECT",'Check your internet connection and try again.')});
+}
+/* we joined someone's lobby: they should connect within 5 s, else it's a ghost */
+function quickExpect(nw){
+  clearTimeout(NET.joinT);NET.expect=true;
+  NET.joinT=setTimeout(()=>{NET.expect=false;if(NET.nw!==nw||NET.peer)return;NET.bad.push(NET.code);clearTimeout(NET.scanT);
+    nw.leave().then(()=>{if(NET.nw===nw)quickJoin(nw)},()=>{if(NET.nw===nw)quickJoin(nw)})},5000);
+}
+function quickScan(nw){
+  clearTimeout(NET.scanT);
+  NET.scanT=setTimeout(()=>{if(NET.nw!==nw||NET.peer)return;
+    if(NET.expect){quickScan(nw);return} /* just joined someone: quickExpect decides */
+    nw.list(quickFilter()).then(l=>{if(NET.nw!==nw||NET.peer)return;
+      const o=(l||[]).filter(x=>x.code!==NET.code&&x.playerCount===1&&NET.bad.indexOf(x.code)<0).sort((a,b)=>a.code<b.code?-1:1)[0];
+      if(!o||!(o.code<NET.code)){quickScan(nw);return}
+      nw.leave().then(()=>nw.join(o.code)).then(i=>{if(NET.nw!==nw)return;if(i){NET.code=i.code;quickExpect(nw);quickScan(nw)}else quickJoin(nw)},()=>{if(NET.nw===nw)quickJoin(nw)});
+    },()=>quickScan(nw))},3000);
+}
+function netQuick(){
+  showMenu('find');$('findSt').textContent='Looking for someone to play…';
+  const nw=netOpen(()=>{quickJoin(nw);
+    nw.getPlayerCounts().then(c=>{if(NET.nw===nw&&!NET.peer&&c&&c.online>1)$('findSt').textContent=c.online+' players online · looking…'},()=>{})});
+  if(!nw)return;NET.quick=true;NET.bad=[];
+  NET.findT=setTimeout(()=>{if(NET.nw===nw&&!NET.peer){netClose();showMsg('NO ONE FOUND','Nobody else is looking for a game right now.',{bot:true,retry:true})}},15000);
+}
+/* Rematch (quick match, end of round): both must ask; the second ask starts it on both devices. */
+function rematchUi(st){
+  const b=$('rematch'),on=OPP.mode==='net'&&OPP.quick;b.hidden=!on;if(!on)return;
+  b.disabled=st==='wait'||st==='left';b.classList.toggle('ask',st==='ask');
+  b.textContent={idle:'REMATCH',wait:'WAITING…',ask:'ACCEPT REMATCH',left:'OPPONENT LEFT'}[st];
+}
+function netRematch(){if(!NET.peer)return;NET.rmMe=true;netSend({t:'rematch'});if(NET.rmThem)rematchGo();else rematchUi('wait')}
+function rematchGo(){NET.rmMe=NET.rmThem=false;restart()}
 /* Invite: the share sheet on phones, else the clipboard. A ?room= link is added only when the game is its own page
    (inside Poki's frame the page address isn't one a friend can open). */
 function shareCode(){
@@ -77,7 +128,7 @@ function netClear(){if(NET.idle){removeBallMesh(NET.idle);NET.idle=null}NET.out.
 function netKick(b){
   if(OPP.mode!=='net'||!NET.peer)return;
   b.nid=++NET.id;b.sentSt=b.state;NET.out.push(b);
-  netSend({t:'kick',id:b.nid,st:nowS(),lt,p:[b.p.x,b.p.y,b.p.z].map(r3),v:[b.v.x,b.v.y,b.v.z].map(r3)});
+  netSend({t:'kick',id:b.nid,st:nowS(),lt,sx:r3(PX),sd:r3(D),p:[b.p.x,b.p.y,b.p.z].map(r3),v:[b.v.x,b.v.y,b.v.z].map(r3)});
 }
 function netHit(p,b,hx,hy){if(OPP.mode==='net'&&b.nid&&!b.puppet)netSend({t:'hit',id:b.nid,i:panes.indexOf(p),h:[r3(hx),r3(hy)]})}
 function netSfx(b,k){if(OPP.mode==='net'&&b.nid&&!b.puppet)netSend({t:'sfx',k})}
@@ -110,6 +161,7 @@ function netMsg(data){
     case 'hit':remoteHit(m,b);break;
     case 'sfx':if(sfx[m.k])sfx[m.k]();addShake(.05);break;
     case 'again':if(won)restart();break;
+    case 'rematch':if(!won)break;NET.rmThem=true;if(NET.rmMe)rematchGo();else rematchUi('ask');break;
   }
 }
 function remoteKick(m){
@@ -117,11 +169,12 @@ function remoteKick(m){
   if(VS.tb&&VS.turn==='p'&&VS.ending)endTurn(); /* their turn began before our end-of-turn pause ran out */
   lt=m.lt+netLag(); /* keep the windmills in step with the kicker's */
   if(NET.idle){removeBallMesh(NET.idle);NET.idle=null}
-  const x=-m.p[0],b=makeBall(x,m.p[2]);
-  b.m.scale.setScalar(1);b.p.y=m.p[1];b.owner='bot';b.puppet=true;b.state='fly';b.age=0;b.gone=false;
-  b.v.set(-m.v[0],m.v[1],m.v[2]);b.snaps=[{t:m.st,p:b.p.clone(),v:b.v.clone()}];
-  NET.in[m.id]=b;balls.push(b);turnKick('bot');
-  sfx.kick(.8);for(let i=0;i<10;i++)dust.emit(x+rnd(-.3,.3),.1,m.p[2]+rnd(-.2,.2),rnd(-1.8,1.8),rnd(.6,2.2),rnd(-.5,1.5),rnd(.25,.5),[.72,.6,.42],3);
+  const b=makeBall(BX,D);
+  b.m.scale.setScalar(1);b.owner='bot';b.puppet=true;b.state='fly';b.age=0;b.gone=false;
+  b.sx=-(m.sx===undefined?-BX:m.sx);b.sd=m.sd||D; /* their spot, mirrored into our view, and their spot's distance */
+  b.v.set(-m.v[0],m.v[1],m.v[2]);b.snaps=[{t:m.st,p:new T.Vector3(-m.p[0],m.p[1],m.p[2]),v:b.v.clone()}]; /* reports stay in their (mirrored) coordinates; puppetStep remaps */
+  NET.in[m.id]=b;balls.push(b);turnKick('bot');kidKick('bot',b.v);
+  sfx.kick(.8);for(let i=0;i<10;i++)dust.emit(BX+rnd(-.3,.3),.1,D+rnd(-.2,.2),rnd(-1.8,1.8),rnd(.6,2.2),rnd(-.5,1.5),rnd(.25,.5),[.72,.6,.42],3);
 }
 /* their window i (their view) is our mirror-image window */
 function remoteHit(m,b){
@@ -137,6 +190,9 @@ function puppetStep(b,dt){
   const a=s[i],c=s[i+1];
   if(c){const k=clamp((rt-a.t)/(c.t-a.t),0,1);b.p.lerpVectors(a.p,c.p,k);b.v.lerpVectors(a.v,c.v,k)}
   else{const e=clamp(rt-a.t,0,.15);b.p.copy(a.p).addScaledVector(a.v,e);b.v.copy(a.v)}
+  /* Their screen may place the spots differently (another shape): stretch the depth so their spot lands on ours,
+     and slide x onto our spot near the kick, fading to their true path at the wall (where the windows are the same). */
+  const k=clamp(b.p.z/b.sd,0,1);b.p.x+=(BX-b.sx)*k;b.p.z*=D/b.sd;
   b.p.y=Math.max(R,b.p.y);b.age+=dt;
   const sp=b.v.length();b.spin.set(0,1,0).cross(b.v);if(sp>.05&&b.spin.lengthSq()>1e-4){b.spin.normalize();b.m.rotateOnWorldAxis(b.spin,sp/R*dt*.75)}
   b.sh.position.x=b.p.x;b.sh.position.z=b.p.z;b.sh.material.opacity=clamp(1-b.p.y/9,.15,1);

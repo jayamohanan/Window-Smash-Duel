@@ -14,11 +14,6 @@ html,body{height:100%;margin:0;overflow:hidden;background:#8fd0ee;font-family:va
 #gl,#fx{position:absolute;inset:0;width:100%;height:100%;display:block}
 #gl{touch-action:none;cursor:default}
 #fx{pointer-events:none}
-/* Neon-green arrow cursor with a black outline over the game (js/cursor.js), one fixed look; its tip is the pointer spot (hence the -3px margin). The system cursor is hidden only while it shows */
-#gl.nocur{cursor:none}
-#cursor svg{display:block}
-#cursor{position:absolute;left:0;top:0;width:24px;height:32px;margin:-3px 0 0 -3px;pointer-events:none;z-index:11;will-change:transform}
-.ctrail{position:absolute;left:0;top:0;width:14px;height:14px;margin:-7px 0 0 -7px;box-sizing:border-box;border-radius:50%;background:#39ff14;border:2px solid #23304a;pointer-events:none;z-index:10}
 .hud{position:absolute;top:calc(10px + env(safe-area-inset-top,0px));left:max(12px,env(safe-area-inset-left,0px));right:max(12px,env(safe-area-inset-right,0px));display:flex;align-items:center;gap:10px;pointer-events:none}
 .spacer{flex:1}
 /* VS scores, centred at the top: blue = you, red = the bot (the same colours as the kick spots, ball trails and frames) */
@@ -95,22 +90,41 @@ html,body{height:100%;margin:0;overflow:hidden;background:#8fd0ee;font-family:va
 .mb small{display:block;font:800 13px/1.3 var(--body);letter-spacing:0;opacity:.92}
 .mb.blue{background:var(--you);box-shadow:0 5px 0 #2a64a3}
 .mb.gold{background:var(--gold);color:var(--ink);box-shadow:0 5px 0 #b8861a}
+.mb.ink{background:var(--ink);box-shadow:0 5px 0 #121a2c}
+.mcard .spin{justify-self:center;animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.mcard .spin{animation-duration:4s}}
+/* end of a stranger match: Play again (new opponent) and Rematch (same one; both must ask) */
+.winbtns{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:18px}
+.winbtns #again{margin-top:0}
+#rematch{pointer-events:auto;border:0;background:var(--you);color:#fff;font:400 24px var(--display);padding:12px 26px;border-radius:12px;cursor:pointer;box-shadow:0 5px 0 #2a64a3}
+#rematch:disabled{opacity:.6;cursor:default}
+#rematch.ask{background:var(--gold);color:var(--ink);box-shadow:0 5px 0 #b8861a;animation:tapMe 1s ease-in-out infinite alternate}
 .mb:active{transform:translateY(2px)}
 .link{border:0;background:none;color:var(--ink);font:900 15px var(--body);text-decoration:underline;cursor:pointer;padding:6px;justify-self:center}
 .joinrow{display:flex;gap:8px}
 .joinrow input{flex:1;min-width:0;box-sizing:border-box;border:3px solid var(--ink);border-radius:12px;padding:8px 10px;font:400 24px var(--display);letter-spacing:3px;text-align:center;text-transform:uppercase;color:var(--ink);background:#fff}
 .joinrow input::placeholder{color:#b9bfcc}
 .code{font:400 clamp(44px,14vw,60px)/1 var(--display);letter-spacing:6px;color:var(--ink);background:#fff;border:3px dashed var(--ink);border-radius:14px;padding:12px 8px 8px;user-select:text;-webkit-user-select:text}
-/* Turn mode: whose turn it is, centred just in front of the kick spots (top set by placeTurn in vs.js); dots = kicks left in a 3-kick turn. */
-#turn{position:absolute;left:50%;transform:translateX(-50%);pointer-events:none;white-space:nowrap;font:400 17px/1 var(--display);color:#fff;padding:7px 12px;border-radius:999px;display:flex;align-items:center;gap:8px;letter-spacing:.5px}
-#turn.you{background:var(--you);box-shadow:0 3px 0 #2a64a3}
-#turn.bot{background:var(--bot);box-shadow:0 3px 0 #a33427}
-#turn span{display:flex;gap:4px}
-#turn i{display:block;width:20px;height:20px;opacity:.3;transition:opacity .2s}
-#turn i svg{display:block;width:100%;height:100%}
-#turn i.on{opacity:1}
-#turn em{font-style:normal;font-size:14px;opacity:.85}
+/* Turn mode HUD pinned to the kick spots (placeTags in vs.js): the turn label above the kicking side's ball, and each side's
+   footballs for its turn + kicks left beside its spot (yours on the left, the opponent's on the right). */
+#tags{position:absolute;inset:0;pointer-events:none}
+.tlabel{position:absolute;left:0;top:0;transform:translate(-50%,-100%);white-space:nowrap;font:400 18px/1 var(--display);color:#fff;padding:8px 13px;border-radius:999px;letter-spacing:.5px}
+.tlabel.you{background:var(--you);box-shadow:0 3px 0 #2a64a3}
+.tlabel.bot{background:var(--bot);box-shadow:0 3px 0 #a33427}
+.tlabel.pop{animation:turnPop .4s cubic-bezier(.2,1.6,.4,1)}
+.tlabel.blink{animation:blink .8s ease-in-out infinite}
+@keyframes turnPop{from{transform:translate(-50%,-100%) scale(.6);opacity:0}to{transform:translate(-50%,-100%) scale(1);opacity:1}}
+@keyframes blink{0%,100%{opacity:1;transform:translate(-50%,-100%) scale(1.06)}50%{opacity:.15;transform:translate(-50%,-100%) scale(1)}}
+.kicks{position:absolute;left:0;top:0;display:flex;align-items:center;gap:6px;padding:4px 9px;border-radius:999px;background:rgba(35,48,74,.6);transition:opacity .25s;white-space:nowrap}
+.kicks.you{flex-direction:row-reverse;box-shadow:inset 0 0 0 2px var(--you)}
+.kicks.bot{box-shadow:inset 0 0 0 2px var(--bot)}
+.kicks.idle{opacity:.45}
+.kicks span{display:flex;gap:3px}
+.kicks i{display:block;width:20px;height:20px;opacity:.3;transition:opacity .2s}
+.kicks i svg{display:block;width:100%;height:100%}
+.kicks i.on{opacity:1}
+.kicks em{font:900 13px/1 var(--body);font-style:normal;color:#fff}
 #score b small{font-size:.55em;opacity:.8}
-#turn.pop{animation:turnPop .4s cubic-bezier(.2,1.6,.4,1)}
-@keyframes turnPop{from{transform:translateX(-50%) scale(.6);opacity:0}to{transform:translateX(-50%) scale(1);opacity:1}}
-@media (prefers-reduced-motion:reduce){#turn.pop{animation:none}}
+@media (prefers-reduced-motion:reduce){.tlabel.pop{animation:none}.tlabel.blink{animation:pulse 1.6s ease-in-out infinite}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.55}}

@@ -16,7 +16,7 @@ if(window.matchMedia&&matchMedia('(prefers-reduced-motion:reduce)').matches)S.sh
 /* Who plays the red side: 'bot' (the robot), 'local' (a second player on this device, pass-and-play) or 'net' (a friend
    online, net.js). Side 'p' is always this device's player (blue, left half); 'bot' is the red side (right half), whoever
    plays it. Online, each device sees itself as blue on the left: the arena is a mirror image, so net.js flips x. */
-const OPP={mode:'bot',turns:3};
+const OPP={mode:'bot',turns:3,quick:false}; /* quick: an online match with a stranger (vs a friend by code) */
 const localHuman=s=>s==='p'||OPP.mode==='local';
 /* kicks per turn (0 = real-time race): the ⚙ setting; games between two people are always turn-based (3 kicks if the
    setting says real-time); online the creator's setting is used (OPP.turns) */

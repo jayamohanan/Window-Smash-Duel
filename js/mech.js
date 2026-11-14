@@ -189,7 +189,7 @@ function buildMill(o){
   const cap=new T.Mesh(new T.SphereGeometry(.22,12,8),mat(0xffc53a));cap.position.z=.26;rot.add(cap);
   for(let k=0;k<n;k++){const arm=new T.Group();arm.rotation.z=k*Math.PI*2/n;rot.add(arm);
     addOb(box(len,.17,.17,0x6b4a2c,len/2,0,0,arm),'wood');
-    addOb(box(len-.6,.9,.07,sail,(len+.6)/2,.5,.02,arm),'wood')}
+    addOb(box(len-.6,.45,.07,sail,(len+.6)/2,.275,.02,arm),'wood')} /* sail 0.45 wide, its inner edge along the arm */
   const dir=o.dir||(wind<0?1:-1); /* default: the tops of the sails move with the wind; no wind turns clockwise */
   movers.push(t=>{rot.rotation.z=dir*t*o.speed});
 }
