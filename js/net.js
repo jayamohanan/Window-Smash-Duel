@@ -13,7 +13,7 @@
 const GAME_ID='d0eb2e6d-a84f-4577-8470-fa110135d28b'; /* development ID: replace with the Poki game ID before release */
 const NET_VER=1; /* bump when the online messages or rules change: quick match only pairs players on the same version */
 const NET={nw:null,peer:null,host:false,code:'',id:0,snapT:0,off:Infinity,out:[],in:{},idle:null,timer:0,
-  quick:false,findT:0,scanT:0,joinT:0,bad:[],rmMe:false,rmThem:false};
+  quick:false,findT:0,scanT:0,joinT:0,bad:[],rmMe:false,rmThem:false,seed:1,classic:false,round:-1};
 const nowS=()=>performance.now()/1000,r3=v=>Math.round(v*1000)/1000;
 
 function netSend(m,fast){const n=NET.nw;if(!n||!NET.peer)return;try{n.broadcast(fast?'unreliable':'reliable',JSON.stringify(m))}catch(e){}}
@@ -36,7 +36,8 @@ function netOpen(onReady){
   nw.on('ready',mine(onReady));
   nw.on('connected',mine(peer=>{NET.peer=peer;clearTimeout(NET.timer);clearTimeout(NET.findT);clearTimeout(NET.scanT);clearTimeout(NET.joinT);
     if(NET.quick)NET.host=nw.id<peer.id; /* quick match: either could have opened the lobby; the lower id starts */
-    if(NET.host){OPP.turns=NET.quick?3:S.turns>0?S.turns:3;netSend({t:'start',turns:OPP.turns});startMode('net')} /* strangers: fixed 3-kick turns */
+    if(NET.host){OPP.turns=NET.quick?3:S.turns>0?S.turns:3;NET.seed=(Math.random()*2147483646|0)+1;NET.classic=!SHUF.played;NET.round=-1;
+      netSend({t:'start',turns:OPP.turns,seed:NET.seed,classic:NET.classic});startMode('net')} /* strangers: fixed 3-kick turns */
     else if(NET.quick)$('findSt').textContent='Found a player! Starting…';
     else $('msgP').textContent='Starting…'}));
   nw.on('disconnected',mine(()=>{if(!NET.peer)return;NET.peer=null;
@@ -121,6 +122,13 @@ function shareCode(){
   try{navigator.clipboard.writeText(text).then(done,()=>{})}catch(e){}
 }
 
+/* Window owners online: round 0 is the classic split if the creator hadn't played a turn round yet this session,
+   then a pattern from the shared seed and the round number (both devices restart in step: start, again, rematch). */
+function netPattern(n){
+  const r=++NET.round;if(r===0&&NET.classic)return classicPat(n);
+  let a=(NET.seed+r*0x9E3779B1)>>>0;const rand=()=>{a=(a+0x6D2B79F5)>>>0;let t=a;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296}; /* mulberry32 */
+  return Array.from({length:n},()=>rand()<.5?1:0);
+}
 /* ---------- in the round ---------- */
 /* level cleared: forget the balls of the last round */
 function netClear(){if(NET.idle){removeBallMesh(NET.idle);NET.idle=null}NET.out.length=0;NET.in={}}
@@ -153,7 +161,7 @@ function netMsg(data){
   if(typeof m.st==='number')NET.off=Math.min(NET.off,nowS()-m.st); /* clock offset + quickest delivery seen */
   const b=m.id!==undefined?NET.in[m.id]:null;
   switch(m.t){
-    case 'start':if(!NET.host){OPP.turns=(m.turns|0)||3;startMode('net')}break;
+    case 'start':if(!NET.host){OPP.turns=(m.turns|0)||3;NET.seed=m.seed|0||1;NET.classic=!!m.classic;NET.round=-1;startMode('net')}break;
     case 'kick':remoteKick(m);break;
     case 'pos':if(b&&!b.gone){const s=b.snaps;if(m.st>s[s.length-1].t)s.push({t:m.st,p:new T.Vector3(-m.p[0],m.p[1],m.p[2]),v:new T.Vector3(-m.v[0],m.v[1],m.v[2])})}break;
     case 'st':if(b)b.state=m.s;break;

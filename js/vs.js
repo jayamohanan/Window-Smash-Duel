@@ -19,7 +19,7 @@ function vsStart(L){
   drawScore();if(clock)clock.set(1,false,false);
   if(OPP.mode==='bot')botReady();else botSpot.visible=true; /* a person plays red: no robot */
   if(VS.tb)beginTurn(OPP.mode==='net'&&!NET.host?'bot':'p') /* turn mode: blue starts; online, whoever created the game */
-  const go=()=>later(.8,()=>{if(!VS.on)return;VS.started=true;if(!VS.tb)botStart()}); /* the first shutters rolling up are the start signal */
+  const go=()=>later(.8,()=>{if(!VS.on)return;VS.started=true;if(VS.tb)SHUF.played=true;if(!VS.tb)botStart()}); /* the first shutters rolling up are the start signal */
   if(tapped)go();else startGo=go; /* very first round waits for the tap-to-play gate (ui.js) */
 }
 /* Start gate: the round waits behind the menu until a mode is picked (ui.js startMode, which reloads the round with
@@ -52,7 +52,22 @@ function vsTick(dt){
 const TB_KICKS=15,FRAME_SIDE=TEAM;
 const tbOn=()=>!!(LVL&&LVL.vs&&turnsPer()>0); /* turn-mode arena (also true while loadLevel builds, before VS is set up) */
 /* Turn-mode arena (called by loadLevel before building): no roller shutters, no wired (two-kick) glass; each window belongs to a half. */
-function turnPanes(ps){ps.forEach(p=>{if(!p.vs)return;delete p.shutter;delete p.hp;p.pts=1;p.side=p.x<0?'p':'bot';p.fc=FRAME_SIDE[p.side]})}
+/* Who owns which window. The windows form mirror pairs (left window and its twin across the middle); each round every
+   pair is split, one to each side, so both sides always get mirror-image sets (fair from mirrored kick spots).
+   SHUF.pat: one entry per pair, top row first, left to right; 1 = you get the left one. All 1 = the classic halves,
+   used until the session's first turn round has started; after that each round is shuffled. Online the creator sends a
+   seed and both devices derive the same pattern per round (net.js netPattern); since each device sees itself on the
+   left, the same pattern is right on both screens. */
+const SHUF={played:false,pat:null};
+const classicPat=n=>Array(n).fill(1);
+function turnPanes(ps){
+  const L=ps.filter(p=>p.vs&&p.x<0).sort((a,b)=>b.y-a.y||a.x-b.x),n=L.length;
+  const pat=OPP.mode==='net'?netPattern(n):!SHUF.played?classicPat(n):Array.from({length:n},()=>Math.random()<.5?1:0);
+  SHUF.pat=pat;
+  L.forEach((l,i)=>{const r=ps.find(q=>q.vs&&Math.abs(q.x+l.x)<.01&&Math.abs(q.y-l.y)<.01);l.side=pat[i]?'p':'bot';if(r)r.side=pat[i]?'bot':'p'});
+  ps.forEach(p=>{if(!p.vs)return;delete p.shutter;delete p.hp;p.pts=1;if(!p.side)p.side=p.x<0?'p':'bot';p.fc=FRAME_SIDE[p.side]});
+}
+const shuffled=()=>!!SHUF.pat&&SHUF.pat.some(b=>!b);
 const halfCount=who=>panes.filter(p=>p.vs&&p.side===who).length;
 function beginTurn(who){
   if(VS.over)return;

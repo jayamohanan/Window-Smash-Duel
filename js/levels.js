@@ -78,7 +78,7 @@ function buildFacade(L){
   wall.position.z=ZF-.38;wall.castShadow=true;wall.receiveShadow=true;g.add(wall);
   if(tb){box(W*2+.3,.55,.62,0xb79a70,0,.275,ZF-.19,g); /* plinth */
     box(W*2+.5,.3,.6,0xd8bf95,0,H+.15,ZF-.19,g); /* flat cornice */
-    box(.4,H,.62,0xd8bf95,0,H/2,ZF-.19,g)} /* centre pilaster: your half | the opponent's half */
+    if(!shuffled())box(.4,H,.62,0xd8bf95,0,H/2,ZF-.19,g)} /* centre pilaster: your half | the opponent's half (classic split only) */
   else{box(W*2+.3,.55,.62,0xb79a70,0,.275,ZF-.19,g); /* plinth */
     [-1,1].forEach(s=>box(W-pw+.2,.3,.6,0xd8bf95,s*(W+pw)/2+s*.05,H+.15,ZF-.19,g))} /* cornice either side of the raised centre */
   [-1,1].forEach(s=>box(.4,H+.3,.62,0xd8bf95,s*(W+.05),(H+.3)/2,ZF-.19,g)); /* corner posts */
