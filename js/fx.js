@@ -15,7 +15,9 @@ const spark=Particles(500,.26,T.AdditiveBlending), dust=Particles(260,.7,T.Norma
 
 /* ---------- juice ---------- */
 let freezeT=0,slowT=0,shakeA=0,zoomK=0,focus=new T.Vector3(),focusK=0;
-function addShake(a){shakeA=Math.min(1.1,shakeA+a*S.shake)}
+/* NO_JOLT: camera shake, hit-freeze and the impact zoom / look are off for now (set false to bring them all back) */
+const NO_JOLT=true;
+function addShake(a){if(NO_JOLT)return;shakeA=Math.min(1.1,shakeA+a*S.shake)}
 function pop(text,x,y,z,small){const s=toScreen(x,y,z),d=document.createElement('div');d.className='pop'+(small?' small':'');d.textContent=text;d.style.left=clamp(s[0],90,W_-90)+'px';d.style.top=clamp(s[1],70,H_-50)+'px';$('stage').appendChild(d);setTimeout(()=>d.remove(),1000)}
 function clipRect(poly,xa,xb,ya,yb){
   const cut=(pts,ins,inter)=>{const o=[];for(let i=0;i<pts.length;i++){const a=pts[i],b=pts[(i+1)%pts.length],ia=ins(a),ib=ins(b);if(ia)o.push(a);if(ia!==ib)o.push(inter(a,b))}return o};
@@ -57,13 +59,35 @@ function ringAt(p){
   m.position.copy(p);scene.add(m);fxObjs.push({m,t:0,d:.32});
 }
 const fxObjs=[];
-/* Confetti on the 2D layer over the game, fired from both bottom corners. */
-const confetti=[],CONF=['#ffc53a','#d9503f','#4fbf5a','#47c3ff','#fff8e8','#f35f7d'];let confOn=false;
-function burstConfetti(){for(let i=0;i<150;i++){const l=i%2===0;confetti.push({x:l?-10:W_+10,y:H_*.85,vx:(l?1:-1)*rnd(180,W_*.9+200),vy:-rnd(500,H_*1.25+260),r:rnd(0,6),w:rnd(-12,12),s:rnd(7,14),c:CONF[i%6],t:0,d:rnd(1.5,2.5)})}}
+/* Confetti on the 2D layer (#fx, drawn above the end panel): two cannons from the bottom corners, a second smaller
+   volley, then ~3 s of confetti rain from the top; flat pieces that flutter, curly streamers and gold stars.
+   confPop(x,y): a small gold burst at a screen point (the winner's crown landing). */
+const confetti=[],CONF=['#ffc53a','#f08a24','#4fbf5a','#47c3ff','#fff8e8','#f35f7d','#ffe27a'];let confOn=false,confRain=0;
+function confPiece(o){if(confetti.length>900)return;const r=Math.random();
+  confetti.push(Object.assign({kind:r<.14?'streamer':r<.22?'star':'flake',r:rnd(0,6),w:rnd(-12,12),s:rnd(8,16),c:CONF[Math.floor(Math.random()*CONF.length)],t:0,d:rnd(2.4,3.6),
+    g:1050,drag:1.1,air:0,sw:0,ph:rnd(0,6),fs:rnd(3,6)},o))}
+function cannon(left,n,k){for(let i=0;i<n;i++)confPiece({x:left?-10:W_+10,y:H_*rnd(.8,.95),vx:(left?1:-1)*rnd(180,W_*.85+220)*k,vy:-rnd(560,H_*1.3+300)*k,air:.9,sw:rnd(20,60)})}
+function burstConfetti(){
+  cannon(true,170,1);cannon(false,170,1);
+  setTimeout(()=>{cannon(true,70,.85);cannon(false,70,.85)},450);
+  confRain=3;sfx.popper();
+}
+/* gentle rain from the top: slow fall, side-to-side sway */
+function rainStep(dt){if(confRain<=0)return;confRain-=dt;const n=Math.round(dt*95*Math.min(1,confRain+.3));
+  for(let i=0;i<n;i++)confPiece({x:rnd(0,W_),y:-20,vx:rnd(-30,30),vy:rnd(60,140),g:220,drag:.4,air:1.6,sw:rnd(30,80),d:7,s:rnd(7,13)})}
+function confPop(x,y){for(let i=0;i<46;i++){const a=rnd(0,Math.PI*2),v=rnd(220,520);
+  confPiece({x,y,vx:Math.cos(a)*v,vy:Math.sin(a)*v-240,g:900,drag:2,air:.6,d:rnd(1.2,1.9),s:rnd(6,11),c:Math.random()<.6?'#ffc53a':Math.random()<.5?'#fff8e8':'#ffe27a',kind:Math.random()<.35?'star':'flake'})}}
+function drawStar(g,s){g.beginPath();for(let i=0;i<10;i++){const a=i*Math.PI/5-Math.PI/2,r=i%2?s*.42:s;g.lineTo(Math.cos(a)*r,Math.sin(a)*r)}g.closePath();g.fill();g.lineWidth=1.5;g.strokeStyle='rgba(35,48,74,.55)';g.stroke()}
 function stepConfetti(dt){
+  rainStep(dt);
   if(!confetti.length&&!confOn)return;fctx.clearRect(0,0,W_,H_);
-  for(let i=confetti.length-1;i>=0;i--){const c=confetti[i];c.t+=dt;c.vy+=1050*dt;c.vx*=1-1.1*dt;c.x+=c.vx*dt;c.y+=c.vy*dt;c.r+=c.w*dt;if(c.t>c.d||c.y>H_+30){confetti.splice(i,1);continue}
-    fctx.save();fctx.translate(c.x,c.y);fctx.rotate(c.r);fctx.globalAlpha=Math.min(1,(c.d-c.t)*3);fctx.fillStyle=c.c;fctx.fillRect(-c.s/2,-c.s*.3,c.s,c.s*.6*Math.abs(Math.cos(c.r*1.7))+1);fctx.restore()}
+  for(let i=confetti.length-1;i>=0;i--){const c=confetti[i];c.t+=dt;c.vy+=c.g*dt;c.vx*=1-c.drag*dt;if(c.air&&c.vy>0)c.vy*=1-c.air*dt; /* air: falling pieces float */
+    c.x+=(c.vx+Math.sin(c.t*c.fs+c.ph)*c.sw)*dt;c.y+=c.vy*dt;c.r+=c.w*dt;if(c.t>c.d||c.y>H_+40){confetti.splice(i,1);continue}
+    fctx.save();fctx.translate(c.x,c.y);fctx.rotate(c.r);fctx.globalAlpha=Math.min(1,(c.d-c.t)*3);fctx.fillStyle=fctx.strokeStyle=c.c;
+    if(c.kind==='star')drawStar(fctx,c.s*.6);
+    else if(c.kind==='streamer'){fctx.lineWidth=3;fctx.lineCap='round';fctx.beginPath();const L=c.s*2.2;for(let k=0;k<=8;k++){const u=k/8;fctx.lineTo(-L/2+u*L,Math.sin(u*Math.PI*2+c.t*9+c.ph)*c.s*.28)}fctx.stroke()}
+    else fctx.fillRect(-c.s/2,-c.s*.3,c.s,c.s*.6*Math.abs(Math.cos(c.r*1.7))+1); /* flutter: the piece turns edge-on and back */
+    fctx.restore()}
   confOn=confetti.length>0;
 }
 /* lh: hit point in the pane's own frame (free panes); wall panes use the ball position.
@@ -76,7 +100,7 @@ function smash(p,b,lh){
   for(let i=0;i<90;i++)spark.emit(w.x,w.y,w.z,rnd(-7,7),rnd(-5,8),rnd(-5,8),rnd(.2,.75),col,8);
   ringAt(new T.Vector3(w.x,w.y,p.xf?w.z+.3:.3));
   netHit(p,b,hx,hy);
-  if(localHuman(b.owner)&&!b.puppet){freezeT=S.freeze/1000;slowT=.18;addShake(.62);zoomK=1;focus.set(w.x,w.y,0);focusK=1}else addShake(.22);
+  if(localHuman(b.owner)&&!b.puppet){freezeT=S.freeze/1000;slowT=.18;if(!NO_JOLT){zoomK=1;focus.set(w.x,w.y,0);focusK=1}} /* NO_JOLT: no zoom / look toward the window either */else addShake(.22);
   sfx.glass();if(p.gold)sfx.boom();glareBreak(p);
   if(p.stop)stopBall(b);
   else{b.v.multiplyScalar(.72);b.a.x=0;b.state='passed'}

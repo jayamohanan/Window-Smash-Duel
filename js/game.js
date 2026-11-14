@@ -8,7 +8,7 @@ function vsTap(){if(OPP.mode==='net'&&OPP.quick)return; /* stranger: the buttons
    tab is hidden. P / Esc toggle it. ---------- */
 let paused=false;
 function setPause(v){
-  if(v===paused||(v&&(won||retrying)))return;paused=v;$('pause').hidden=!v;
+  if(v===paused||(v&&(won||retrying||!$('menu').hidden)))return; /* no pause behind the menu (its cover would hide Resume) */paused=v;$('pause').hidden=!v;
   if(v&&drag){drag=null;hidePreview()}
 }
 
@@ -73,6 +73,7 @@ function frame(now){
   requestAnimationFrame(frame);
   const real=Math.min(.05,(now-last)/1000);last=now;
   let dt=real;
+  if(NO_JOLT)freezeT=0; /* hit-freeze off for now (fx.js) */
   if(freezeT>0){freezeT-=real;dt=0}
   else if(slowT>0){slowT-=real;dt=real*S.slow}
   if(!paused)tick(dt,real);

@@ -1,24 +1,26 @@
 'use strict';
 /* ---------- bot opponent (simple, no real AI, but kicks like a person) ----------
-   Loop: think (S.botThink s, varied) -> pick an open window (the gold one if it's up, else the nearest or a random one)
+   Loop: think (botThink s, varied) -> pick an open window (the gold one if it's up, else the nearest or a random one)
    and roll how this kick will go -> wind up for S.botWindup s (turns to face the window and pulls the kicking leg back:
    that's the tell, so you can snipe the window first) -> kick: solveArc (the same launch maths as shotFrom) toward the
    window plus the rolled error, flight time about S.botFlight s -> follow-through -> think again. Its balls carry owner
    'bot' and score for it.
-   Each kick is good (near the centre, spread S.botErr), okay (near an edge: sometimes clips the glass, sometimes the frame)
-   or bad (a clear miss, but always close to the window). Chances: S.botGood / S.botBad, the rest are okay. Errors are
+   Each kick is good (near the centre, spread botErr), okay (near an edge: sometimes clips the glass, sometimes the frame)
+   or bad (a clear miss, but always close to the window). Chances: botGood / botBad, the rest are okay. Errors are
    mostly too high / too low (power), less often sideways. On top:
-   - habit: a fixed lean per match (BOT.bias, size S.botBias), e.g. always a bit high or a bit right;
+   - habit: a fixed lean per match (BOT.bias, size botBias), e.g. always a bit high or a bit right;
    - correction: after a miss the next kick isn't bad, and lands a little to the other side of the window;
      never more than 2 bad kicks in a row;
    - hard windows (far, high, small, moving) and rushed kicks (short think) go wrong more often; long thinks less;
    - pressure: 2+ behind it focuses (fewer mistakes); 2+ ahead it gets careless and slower (S.botEase);
-   - windmills: with chance S.botSmart a kick is careful: at the end of the wind-up it checks whether a sail would be in the
+   - windmills: with chance botSmart a kick is careful: at the end of the wind-up it checks whether a sail would be in the
      ball's way (millBlock) and holds the kick up to ~0.9 s for a gap. Careless kicks just go.
-   Presets: BOT_PRESETS in settings.js (Easy / Normal / Hard chips in the ⚙ panel); later each level brings its own bot.
+   Gold window: per profile, a chance it goes for it at all (prizeP) and a delay after it opens (prizeWait).
+   Its numbers (BOT.P, fixed at round start): the ramp tier (BOT_TIERS[PROG.tier], the default) or, with S.botAuto off,
+   the ⚙ sliders / Easy-Normal-Hard chips. Later each level brings its own bot.
    Where it kicks from: BOT.from (set by placeBot from the layout) and BOT.side (1 = the player's side, kicking toward -z).
    A bot on the far side of the wall would be side -1, kicking toward +z; that needs crossPlane to judge a +z crossing too. */
-const BOT={on:false,st:'off',t:0,T:1,ball:null,ballT:0,target:null,fig:null,parts:null,yaw:0,yawGoal:0,kickT:-1,side:1,committed:false,from:new T.Vector3(),
+const BOT={P:Object.assign({},BOT_TIERS[2]),on:false,st:'off',t:0,T:1,ball:null,ballT:0,target:null,fig:null,parts:null,yaw:0,yawGoal:0,kickT:-1,side:1,committed:false,from:new T.Vector3(),
   shot:null,bias:{x:0,y:0},misses:0,lastMiss:null,thought:1,careful:false,hold:0};
 
 /* The figure: a chunky red robot standing just behind and to the right of its ball. Built once, kept across rounds. */
@@ -40,10 +42,30 @@ function placeBot(){
   BOT.from.set(BX,R,BZ);BOT.fig.position.set(BX,0,BZ);
   const b=BOT.ball;if(b){b.p.set(BX,b.p.y,BZ);b.sh.position.set(BX,.04,BZ)}
 }
+/* ---------- progress on this device: drives the difficulty ramp and the one-time warm-up (vs.js) ---------- */
+const PROG_KEY='windowSmashDuel.prog';
+let PROG={played:0,wr:0,lr:0,tier:0,warm:false,mills:false,v:0}; /* warm: practice match done; mills: windmill banner shown */
+try{Object.assign(PROG,JSON.parse(localStorage.getItem(PROG_KEY)||'{}'))}catch(e){}
+const progSave=()=>{try{localStorage.setItem(PROG_KEY,JSON.stringify(PROG))}catch(e){}};
+/* v2 (2026-11-14): a 'tough' tier went in before 'hard' and the old hard was too quick: anyone above normal restarts at normal */
+if(PROG.v!==2){if(PROG.tier>2)PROG.tier=2;PROG.wr=0;PROG.v=2;progSave()}
+/* a finished match against the bot: move the tier */
+function progRecord(win){
+  const P=PROG;P.played++;
+  if(win){P.wr++;P.lr=0;if(P.wr>=3){P.tier++;P.wr=0}}else{P.lr++;P.wr=0;if(P.lr>=2){P.tier--;P.lr=0}} /* 3 wins up, 2 losses down */
+  if(P.played===2)P.tier=Math.max(P.tier,1); /* after the 2 rookie matches: easy (and normal from match 6, unless losing) */
+  if(P.played===5)P.tier=Math.max(P.tier,2);
+  P.tier=P.played<2?0:clamp(P.tier,0,P.played<5?1:P.played<10?3:BOT_TIERS.length-1); /* hard only from match 10 */
+  progSave();
+}
+function botProfile(){
+  if(S.botAuto)return Object.assign({},BOT_TIERS[clamp(PROG.tier|0,0,BOT_TIERS.length-1)]);
+  return {botGood:S.botGood,botBad:S.botBad,botErr:S.botErr,botBias:S.botBias,botSmart:S.botSmart,botThink:S.botThink,minThink:0,prizeP:.65,prizeWait:[.9,1.4]};
+}
 function botBall(){const b=makeBall(BOT.from.x,BOT.from.z);b.owner='bot';BOT.ball=b}
 /* level loaded: figure and its ball in place, idle until the round starts */
-function botReady(){BOT.fig.visible=botSpot.visible=true;newHabit();BOT.yaw=BOT.yawGoal=0;BOT.kickT=-1;BOT.st='off';BOT.on=false;if(!BOT.ball)botBall()}
-function botStart(){BOT.on=true;BOT.st='think';BOT.t=thinkDelay()*.6+.3;BOT.thought=S.botThink}
+function botReady(){BOT.P=botProfile();BOT.fig.visible=botSpot.visible=true;BOT.fig.scale.setScalar(1);newHabit();BOT.yaw=BOT.yawGoal=0;BOT.kickT=-1;BOT.st='off';BOT.on=false;if(!BOT.ball)botBall()}
+function botStart(){BOT.on=true;BOT.st='think';BOT.t=thinkDelay()*.6+.3;BOT.thought=BOT.P.botThink}
 function botStop(){BOT.on=false;BOT.st='off'}
 function botClear(){if(BOT.ball){removeBallMesh(BOT.ball);BOT.ball=null}BOT.ballT=0;botStop();BOT.target=null;BOT.fig.visible=botSpot.visible=false}
 
@@ -51,12 +73,17 @@ function botClear(){if(BOT.ball){removeBallMesh(BOT.ball);BOT.ball=null}BOT.ball
 const botLead=()=>VS.score.bot-VS.score.p;
 /* while 2+ ahead it slows down (and gets careless, see rollShot) */
 const botEaseK=()=>{const lead=botLead();return lead>=2?1+S.botEase*Math.min(3,lead-1):1};
-function thinkDelay(){const d=S.botThink*rnd(.75,1.3)*botEaseK()*(botLead()<=-2?1.1:1);BOT.thought=d;return d}
+function thinkDelay(){
+  let d=Math.max(BOT.P.minThink||0,BOT.P.botThink*rnd(.75,1.3))*botEaseK()*(botLead()<=-2?1.1:1);
+  if(Math.random()<1/6)d=Math.max(d,rnd(1.5,2.5)); /* now and then a longer look around */
+  BOT.thought=d;return d}
 /* its habit for this match: a fixed lean, more often up/down than sideways */
-function newHabit(){const a=Math.random()*Math.PI*2,m=S.botBias*rnd(.6,1);BOT.bias={x:Math.cos(a)*m*.7,y:Math.sin(a)*m};BOT.misses=0;BOT.lastMiss=null}
+function newHabit(){const a=Math.random()*Math.PI*2,m=BOT.P.botBias*rnd(.6,1);BOT.bias={x:Math.cos(a)*m*.7,y:Math.sin(a)*m};BOT.misses=0;BOT.lastMiss=null}
 function botPick(){
   const open=panes.filter(p=>p.vs&&isOpen(p)&&!p.aimOff&&!p.narrow&&(!VS.tb||p.side==='bot'));if(!open.length)return null; /* turn mode: only its own half */
-  const pr=VS.prize;if(pr&&isOpen(pr)&&VS.t-pr.openAt>.5&&Math.random()<.8)return pr;
+  /* gold window: decide once per opening whether to go for it, and how quickly */
+  const pr=VS.prize;if(pr&&isOpen(pr)){if(pr.botWant===undefined){const w=BOT.P.prizeWait;pr.botWant=Math.random()<BOT.P.prizeP;pr.botAt=pr.openAt+rnd(w[0],w[1])}
+    if(pr.botWant&&VS.t>=pr.botAt)return pr}
   if(Math.random()<.55){let best=open[0],bd=1e9;open.forEach(p=>{const d=Math.hypot(p.x-BOT.from.x,(p.y-3*ak())*1.3);if(d<bd){bd=d;best=p}});return best}
   return open[Math.floor(Math.random()*open.length)];
 }
@@ -68,11 +95,11 @@ function rollShot(p){
   const A=ak(),hw=p.w/2,hh=p.h/2,c=p.c||p;
   /* how hard this window is: far / high, small, moving */
   const far=Math.hypot(c.x-BOT.from.x,c.y-2*A)/A,hard=1+clamp((far-4)/8,0,.5)+Math.min(.5,Math.abs(p.vx||0)*.15/A)+(p.w*p.h<3*A*A?.2:0);
-  const rush=BOT.thought<S.botThink*.85?1.15:BOT.thought>S.botThink*1.15?.9:1; /* a quick kick is sloppier, a long look steadier */
+  const rush=BOT.thought<BOT.P.botThink*.85?1.15:BOT.thought>BOT.P.botThink*1.4?.9:1; /* a quick kick is sloppier, a long look steadier */
   const lead=botLead(),press=lead>=2?1+S.botEase*Math.min(3,lead-1)*.35:lead<=-2?.85:1;
-  const m=hard*rush*press;
-  let bad=Math.min(.7,S.botBad*m);if(BOT.misses>=2)bad=0;else if(BOT.misses===1)bad*=.5;
-  const good=BOT.misses>=2?1:clamp(S.botGood/m,0,1-bad),r=Math.random(),q=r<bad?'bad':r<bad+good?'good':'okay'; /* after 2 misses in a row: a good one */
+  const m=hard*rush*press*(p.gold?1.25:1); /* the gold window: a rushed, greedy shot */
+  let bad=Math.min(.7,BOT.P.botBad*m);if(BOT.misses>=2)bad=0;else if(BOT.misses===1)bad*=.5;
+  const good=BOT.misses>=2?1:clamp(BOT.P.botGood/m,0,1-bad),r=Math.random(),q=r<bad?'bad':r<bad+good?'good':'okay'; /* after 2 misses in a row: a good one */
   const bx=BOT.bias.x*A,by=BOT.bias.y*A;let ex,ey;
   if(q==='bad'){ /* a clear miss, close by: mostly over / under (power), sometimes wide; the habit picks the side more often than not */
     const out=hw=>hw+.12*A+rnd(.15,1.1)*A;
@@ -81,7 +108,7 @@ function rollShot(p){
   else{
     if(q==='okay'){ /* near one edge: most land on the glass, some clip the frame */
       if(Math.random()<.6){ey=sgn()*hh*rnd(.6,1.06);ex=gauss()*hw*.35+bx}else{ex=sgn()*hw*rnd(.6,1.06);ey=gauss()*hh*.35+by}}
-    else{const e=S.botErr*A;ex=clamp(gauss()*e,-hw*.55,hw*.55)+bx;ey=clamp(gauss()*e*.8,-hh*.55,hh*.55)+by}
+    else{const e=BOT.P.botErr*A;ex=clamp(gauss()*e,-hw*.55,hw*.55)+bx;ey=clamp(gauss()*e*.8,-hh*.55,hh*.55)+by}
     /* just missed: this one lands a little to the other side (it corrected, maybe a touch too much) */
     const lm=BOT.lastMiss;if(lm&&q!=='okay'){if(lm.ax==='y')ey=-lm.s*hh*rnd(.15,.4);else ex=-lm.s*hw*rnd(.15,.4)}}
   BOT.shot={q,ex,ey,TT:S.botFlight*Math.sqrt(A)*rnd(.92,1.08)};
@@ -101,7 +128,7 @@ function millBlock(p0,v0){
 /* note whether the kick was aimed off the glass (windmills and snipes don't count): drives correction and the 2-in-a-row cap */
 function botAimed(p){const s=BOT.shot,oy=Math.abs(s.ey)>p.h/2+.06,ox=Math.abs(s.ex)>p.w/2+.06;
   if(ox||oy){BOT.misses++;BOT.lastMiss=oy?{ax:'y',s:Math.sign(s.ey)}:{ax:'x',s:Math.sign(s.ex)}}else{BOT.misses=0;BOT.lastMiss=null}}
-function pickTarget(p){BOT.target=p;rollShot(p);BOT.careful=Math.random()<S.botSmart;BOT.hold=0;aimYaw(p)}
+function pickTarget(p){BOT.target=p;rollShot(p);BOT.careful=Math.random()<BOT.P.botSmart;BOT.hold=0;aimYaw(p)}
 function botKick(v0){
   const b=BOT.ball,p=BOT.target;if(!b||!p){BOT.st='think';BOT.t=.2;return}
   BOT.ball=null;BOT.ballT=.45;

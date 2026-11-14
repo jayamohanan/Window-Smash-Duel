@@ -58,8 +58,8 @@ function clearLevel(){
   balls.forEach(removeBallMesh);balls.length=0;
   if(cur){removeBallMesh(cur);cur=null}
   botClear();netClear();
-  spark.clear();dust.clear();timers=[];$('win').hidden=true;$('intro').hidden=true;$('again').hidden=true;$('rematch').hidden=true;$('wipe').classList.remove('on');
-  retrying=false;confetti.length=0;fctx.clearRect(0,0,W_,H_);
+  spark.clear();dust.clear();timers=[];$('win').hidden=true;$('intro').hidden=true;$('again').hidden=true;$('rematch').hidden=true;$('winMenu').hidden=true;tensionOff();$('wipe').classList.remove('on');
+  retrying=false;confetti.length=0;confRain=0;fctx.clearRect(0,0,W_,H_);
   obs=[];movers=[];MILLS=[];lt=0;wind=0;wheel=null;hinges=[];clock=null;VS.on=false;
 }
 function makeFrame(p,parent,c){const f=.2*Math.sqrt(ak()),z=.1; /* bigger windows, slightly sturdier frames */
@@ -108,7 +108,8 @@ function buildFacade(L){
 /* Is (x,y) on the facade's solid wall (the window holes are checked before this)? */
 function facadeAt(x,y){const W=LVL.W,H=LVL.H;if(Math.abs(x)>W+.25||y<0)return false;if(tbOn())return y<=H+.05;if(y<=H+.05)return true;if(Math.abs(x)>PED.w)return false;const dy=y-H-PED.h;return dy<=0||Math.hypot(x,dy)<=PED.w+.05}
 
-/* ---------- round clock on the facade: the gold wedge is the time left, it turns red for the last 10 s and pulses in sudden death ---------- */
+/* ---------- round clock on the facade: the gold wedge is the time left, it turns red for the last 10 s and pulses in sudden death;
+   the seconds left sit in the middle (num), white-outlined so they read on gold, red and cream. No needle, so nothing crosses them. ---------- */
 let clock=null;
 function buildClock(x,y,r){
   const g=group,z=ZF+.01;
@@ -116,13 +117,19 @@ function buildClock(x,y,r){
   disc(r+.14,0x23304a,0);const face=disc(r,0xfff8e8,.005);
   const wm=new T.MeshBasicMaterial({color:GOLD,side:T.DoubleSide}),wedge=new T.Mesh(new T.BufferGeometry(),wm);wedge.position.set(x,y,z+.01);g.add(wedge);
   for(let i=0;i<12;i++){const a=i/12*Math.PI*2,t=box(.06,i%3?.12:.22,.01,0x23304a,x+Math.sin(a)*r*.84,y+Math.cos(a)*r*.84,z+.015,g,false);t.rotation.z=-a}
-  const hand=new T.Group();hand.position.set(x,y,z+.02);g.add(hand);box(.08,r*.9,.01,0x23304a,0,r*.45,0,hand,false);
-  disc(.1,0x23304a,.03);
+  /* the number: a canvas texture on a plane over the face, redrawn when the second changes */
+  const cv=document.createElement('canvas');cv.width=cv.height=256;const cx=cv.getContext('2d'),tex=new T.CanvasTexture(cv);
+  const nm=new T.Mesh(new T.PlaneGeometry(r*1.5,r*1.5),new T.MeshBasicMaterial({map:tex,transparent:true,depthWrite:false}));nm.position.set(x,y,z+.03);nm.renderOrder=4;g.add(nm);
+  let lastN=null,lastW=null;
+  const drawN=(n,w)=>{cx.clearRect(0,0,256,256);cx.font='400 150px "Lilita One","Trebuchet MS",sans-serif';cx.textAlign='center';cx.textBaseline='middle';cx.lineJoin='round';
+    cx.lineWidth=26;cx.strokeStyle='#fff8e8';cx.strokeText(n,128,138);cx.fillStyle=w?'#c8281e':'#23304a';cx.fillText(n,128,138);tex.needsUpdate=true};
+  if(document.fonts&&!document.fonts.check(TAG_FONT))document.fonts.load(TAG_FONT).then(()=>{if(lastN!==null)drawN(lastN,lastW)},()=>{}); /* iOS: redraw once the font is in */
   let lastK=-1;
   return{set(k,warn,sudden){
     if(Math.abs(k-lastK)>.003||(k===0&&lastK!==0)){lastK=k;wedge.geometry.dispose();wedge.geometry=k>0?new T.CircleGeometry(r*.97,Math.max(3,Math.ceil(64*k)),Math.PI/2,k*Math.PI*2):new T.BufferGeometry()}
-    hand.rotation.z=-(1-k)*Math.PI*2;wm.color.setHex(warn?TEAM.bot:GOLD);
-    face.material=bmat(sudden&&Math.sin(lt*10)>0?0xffb3a6:0xfff8e8)}};
+    wm.color.setHex(warn?TEAM.bot:GOLD);
+    face.material=bmat(sudden&&Math.sin(lt*10)>0?0xffb3a6:0xfff8e8)},
+    num(n,w){if(n===lastN&&w===lastW)return;lastN=n;lastW=w;drawN(String(n),w)}};
 }
 
 function standLegs(p,sg){[-1,1].forEach(s=>{box(.26,p.y-p.h/2,.26,0x8a5f3b,s*(p.w/2+.1),(p.y-p.h/2)/2,.1,sg);box(.26,.14,1.8,0x704b2c,s*(p.w/2+.1),.07,.1,sg)})}

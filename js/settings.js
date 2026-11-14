@@ -5,7 +5,7 @@ const rnd=(a,b)=>a+Math.random()*(b-a), clamp=(v,a,b)=>Math.min(b,Math.max(a,v))
 /* ---------- settings ---------- */
 const DEF={mode:'live',power:5.5,loft:.5,side:1,lift:1,gravity:16,grab:1.5,ring:3,speed:30,curve:1,snap:.2,reach:1.5,flick:1,reachP:1,arcP:.5,pMax:36,preview:.4,arena:1.7,freeze:85,slow:.3,shake:1,shards:1,sound:true,glSkyOn:false, /* sky drift off by default (renamed from glSky so old saved 'on' values don't bring it back) */ glints:true,
   /* VS round and bot (see bot.js / vs.js) */
-  round:60,live:4,turns:0,botGood:.5,botBad:.27,botErr:.45,botBias:.22,botSmart:.4,botThink:1,botEase:.35,botWindup:.45,botFlight:.8};
+  round:60,live:4,turns:0,botAuto:true,botGood:.5,botBad:.27,botErr:.45,botBias:.22,botSmart:.4,botThink:1,botEase:.35,botWindup:.45,botFlight:.8};
 const KEY='windowSmashDuel.v1'; /* its own key: the original game's saved settings stay separate */
 let S=Object.assign({},DEF);
 try{Object.assign(S,JSON.parse(localStorage.getItem(KEY)||'{}'))}catch(e){}
@@ -16,6 +16,18 @@ try{Object.assign(S,JSON.parse(localStorage.getItem(KEY)||'{}'))}catch(e){}
 const BOT_PRESETS={easy:{botGood:.35,botBad:.4,botErr:.55,botBias:.3,botSmart:0,botThink:1.5},
   normal:{botGood:.5,botBad:.27,botErr:.45,botBias:.22,botSmart:.4,botThink:1},
   hard:{botGood:.68,botBad:.13,botErr:.35,botBias:.15,botSmart:.85,botThink:.65}};
+/* The difficulty ramp (S.botAuto, the default): the opponent you meet depends on how you've been doing on this device
+   (PROG in bot.js). Tier 0 'rookie' for the first 2 matches, at most 'easy' until match 5, at most 'tough' until match 10;
+   3 wins in a row = one tier up, 2 losses in a row = one down.
+   Human pacing: minThink = shortest pause before a kick (s); about 1 kick in 6 gets a longer look (1.5-2.5 s).
+   Gold window: prizeP = chance it goes for it at all, prizeWait = how long before it notices (s); its gold shots are rushed.
+   Hidden from players for now (no names on screen). */
+const BOT_TIERS=[
+  {name:'rookie',botGood:.25,botBad:.45,botErr:.6,botBias:.35,botSmart:0,botThink:2.3,minThink:1.7,prizeP:.3,prizeWait:[1.5,3]},
+  Object.assign({name:'easy'},BOT_PRESETS.easy,{minThink:1.2,prizeP:.45,prizeWait:[1.2,2]}),
+  Object.assign({name:'normal'},BOT_PRESETS.normal,{botThink:1.15,minThink:1.1,prizeP:.6,prizeWait:[.9,1.5]}),
+  {name:'tough',botGood:.6,botBad:.19,botErr:.4,botBias:.18,botSmart:.6,botThink:1.05,minThink:1,prizeP:.65,prizeWait:[.85,1.4]},
+  Object.assign({name:'hard'},BOT_PRESETS.hard,{botThink:.95,minThink:.9,prizeP:.7,prizeWait:[.8,1.3]})];
 if(window.matchMedia&&matchMedia('(prefers-reduced-motion:reduce)').matches)S.shake=Math.min(S.shake,.2);
 /* Live+ (dev mode 'livep'): same flick as live, but swipe speed only decides kick vs dribble; how high the finger goes sets the height. */
 /* Who plays the red side: 'bot' (the robot), 'local' (a second player on this device, pass-and-play) or 'net' (a friend

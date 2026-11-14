@@ -49,7 +49,7 @@ function obHit(b,o,imp){
 function buildMech(L){
   if(L.field==='carousel')buildCarousel(L);else if(L.field==='flip')buildFlips(L);
   panes.forEach(p=>{if(p.shutter)buildShutter(p);if(p.armor)buildBoards(p);if(p.hp>1)buildWired(p)});
-  (L.mills||(L.mill?[L.mill]:[])).forEach(buildMill);
+  if(!isPractice())(L.mills||(L.mill?[L.mill]:[])).forEach(buildMill); /* the practice match (vs.js) has no windmills */
   if(L.wheel)buildWheel(L.wheel);
   if(L.gantry)buildGantry(L.gantry);
   if(L.spin)buildSpins(L);

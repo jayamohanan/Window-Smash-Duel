@@ -5,6 +5,13 @@ const prevDots=[];
 for(let i=0;i<16;i++){const m=new T.Mesh(new T.SphereGeometry(.11,10,8),new T.MeshBasicMaterial({color:0xffffff,transparent:true}));m.visible=false;scene.add(m);prevDots.push(m)}
 /* Launch velocity that takes a ball from p0 to t in TT seconds under constant acceleration acc (gravity, plus any steady
    sideways push). Shared by the old aim/shape kicks and the bot. */
+/* Is the point (x,y) on the wall plane inside the window grid? Grid = the outer edges of the outermost wall windows
+   (frames included); anything below the top row's top edge and between the outer columns counts, the ground side too. */
+function inGrid(x,y){
+  const ws=panes.filter(p=>!p.xf);if(!ws.length)return false;const f=.2*Math.sqrt(ak());
+  let x0=1e9,x1=-1e9,y1=-1e9;ws.forEach(p=>{x0=Math.min(x0,p.x-p.w/2-f);x1=Math.max(x1,p.x+p.w/2+f);y1=Math.max(y1,p.y+p.h/2+f)});
+  return x>x0&&x<x1&&y<y1;
+}
 function solveArc(p0,t,TT,acc){return t.clone().sub(p0).sub(acc.clone().multiplyScalar(.5*TT*TT)).divideScalar(TT)}
 function shotFrom(d){
   const a=d.pts[0],e=d.pts[d.pts.length-1],t=new T.Vector3();
@@ -13,7 +20,7 @@ function shotFrom(d){
   t.x=clamp(t.x,-16*ak(),16*ak());t.y=clamp(t.y,.35,13*ak());t.z=ZF;
   const side=cur?cur.owner:'p';
   let best=null,bd=1e9;panes.forEach(p=>{if(!isOpen(p)||p.xf||(VS.tb&&p.side!==side))return;const dd=Math.hypot(t.x-p.x,t.y-p.y),r=Math.hypot(p.w,p.h)/2+1.4;if(dd<r&&dd<bd){bd=dd;best=p}});
-  if(best&&S.snap>0){t.x=lerp(t.x,best.x,S.snap);t.y=lerp(t.y,best.y,S.snap)}
+  if(best&&S.snap>0&&!inGrid(t.x,t.y)){t.x=lerp(t.x,best.x,S.snap);t.y=lerp(t.y,best.y,S.snap)} /* aim help only outside the grid */
   let bend=0;const dx=e.x-a.x,dy=e.y-a.y,len=Math.hypot(dx,dy);
   if(len>40){let mx=0;d.pts.forEach(q=>{const c=(dx*(q.y-a.y)-dy*(q.x-a.x))/len;if(Math.abs(c)>Math.abs(mx))mx=c});const r=mx/len;if(Math.abs(r)>.07)bend=clamp(r,-.5,.5)}
   const p0=new T.Vector3(cur?cur.p.x:PX,R,D),TT=p0.distanceTo(t)/S.speed,ax=-8*(bend*S.curve*BULGE)/(TT*TT),acc=new T.Vector3(ax,-G,0);
@@ -26,7 +33,7 @@ function showPreview(s){
 }
 const hidePreview=()=>prevDots.forEach(m=>m.visible=false);
 function point(e){const r=canvas.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top,t:performance.now()}}
-canvas.addEventListener('pointerdown',e=>{initAudio();if(paused)return;$('panel').hidden=true;if(won){vsTap();return}if(VS.intro)return; /* round intro: wait until both sides are in */if(isLive()){liveDown(e);return}if(!cur||won||cur.born<.12)return;try{canvas.setPointerCapture(e.pointerId)}catch(x){}drag={pts:[point(e)],id:e.pointerId};turnGrab()});
+canvas.addEventListener('pointerdown',e=>{initAudio();if(paused)return;$('panel').hidden=true;if(won)return; /* round over: the end panel's buttons (or Enter / Space) */if(VS.intro)return; /* round intro: wait until both sides are in */if(isLive()){liveDown(e);return}if(!cur||won||cur.born<.12)return;try{canvas.setPointerCapture(e.pointerId)}catch(x){}drag={pts:[point(e)],id:e.pointerId};turnGrab()});
 canvas.addEventListener('pointermove',e=>{if(!drag||e.pointerId!==drag.id)return;if(isLive()){liveMove(e);return}drag.pts.push(point(e));if(drag.pts.length>120)drag.pts.splice(1,1);const s=shotFrom(drag);if(s.len>18)showPreview(s);else hidePreview()});
 function release(e){initAudio();if(!drag||e.pointerId!==drag.id)return;if(isLive()){if(drag.go)firePlus(drag);drag=null;return}const d=drag;drag=null;hidePreview();const s=shotFrom(d);if(s.len<30||!cur)return;kick(s)}
 canvas.addEventListener('pointerup',release);canvas.addEventListener('pointercancel',()=>{drag=null;hidePreview()});
@@ -133,8 +140,9 @@ function ceilingY(b){
 function flyLive(b,dt){
   const v=b.v,sp=v.length(),c=.004,g=S.gravity;
   /* Aim help: predict where the arc meets each window's plane (moving windows are led by their speed)
-     and nudge toward the nearest one. */
-  if(S.snap>0&&b.p.z<D*.6&&v.z<-.5&&b.p.y>R+.02){
+     and nudge toward the nearest one (within its usual reach). Only for balls headed outside the window grid
+     (left of the leftmost column, right of the rightmost, above the top row): inside it, your aim is your own. */
+  if(S.snap>0&&b.p.z<D*.6&&v.z<-.5&&b.p.y>R+.02&&!inGrid(b.p.x+v.x*(b.p.z-ZF)/-v.z,b.p.y+b.vn*(b.p.z-ZF)/-v.z-.5*g*Math.pow((b.p.z-ZF)/-v.z,2))){
     let best=null,bd=1e9,bt=0,bx=0,by=0;
     aimTargets(b).forEach(p=>{const tr=(b.p.z-p.z)/-v.z;if(tr<.02)return;
       const py=b.p.y+b.vn*tr-.5*g*tr*tr,px=b.p.x+v.x*tr;if(py<R+.2)return;
