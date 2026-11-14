@@ -59,19 +59,14 @@ function ringAt(p){
   m.position.copy(p);scene.add(m);fxObjs.push({m,t:0,d:.32});
 }
 const fxObjs=[];
-/* Confetti on the 2D layer (#fx, drawn above the end panel): two cannons from the bottom corners, a second smaller
-   volley, then ~3 s of confetti rain from the top; flat pieces that flutter, curly streamers and gold stars.
+/* Confetti on the 2D layer (#fx, drawn above the end panel): one volley from each bottom corner (rainStep is unused for now); flat pieces that flutter, curly streamers and gold stars.
    confPop(x,y): a small gold burst at a screen point (the winner's crown landing). */
 const confetti=[],CONF=['#ffc53a','#f08a24','#4fbf5a','#47c3ff','#fff8e8','#f35f7d','#ffe27a'];let confOn=false,confRain=0;
 function confPiece(o){if(confetti.length>900)return;const r=Math.random();
   confetti.push(Object.assign({kind:r<.14?'streamer':r<.22?'star':'flake',r:rnd(0,6),w:rnd(-12,12),s:rnd(8,16),c:CONF[Math.floor(Math.random()*CONF.length)],t:0,d:rnd(2.4,3.6),
     g:1050,drag:1.1,air:0,sw:0,ph:rnd(0,6),fs:rnd(3,6)},o))}
 function cannon(left,n,k){for(let i=0;i<n;i++)confPiece({x:left?-10:W_+10,y:H_*rnd(.8,.95),vx:(left?1:-1)*rnd(180,W_*.85+220)*k,vy:-rnd(560,H_*1.3+300)*k,air:.9,sw:rnd(20,60)})}
-function burstConfetti(){
-  cannon(true,170,1);cannon(false,170,1);
-  setTimeout(()=>{cannon(true,70,.85);cannon(false,70,.85)},450);
-  confRain=3;sfx.popper();
-}
+function burstConfetti(){cannon(true,110,1);cannon(false,110,1);sfx.popper()} /* one volley from each bottom corner (no rain, no second volley) */
 /* gentle rain from the top: slow fall, side-to-side sway */
 function rainStep(dt){if(confRain<=0)return;confRain-=dt;const n=Math.round(dt*95*Math.min(1,confRain+.3));
   for(let i=0;i<n;i++)confPiece({x:rnd(0,W_),y:-20,vx:rnd(-30,30),vy:rnd(60,140),g:220,drag:.4,air:1.6,sw:rnd(30,80),d:7,s:rnd(7,13)})}

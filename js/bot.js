@@ -12,11 +12,12 @@
    - correction: after a miss the next kick isn't bad, and lands a little to the other side of the window;
      never more than 2 bad kicks in a row;
    - hard windows (far, high, small, moving) and rushed kicks (short think) go wrong more often; long thinks less;
-   - pressure: 2+ behind it focuses (fewer mistakes); 2+ ahead it gets careless and slower (S.botEase);
+   - pressure: 2+ behind it focuses (fewer mistakes), 5+ behind a little more and slightly quicker (never under minThink);
+     2+ ahead it gets careless and slower (S.botEase);
    - windmills: with chance botSmart a kick is careful: at the end of the wind-up it checks whether a sail would be in the
      ball's way (millBlock) and holds the kick up to ~0.9 s for a gap. Careless kicks just go.
    Gold window: per profile, a chance it goes for it at all (prizeP) and a delay after it opens (prizeWait).
-   Its numbers (BOT.P, fixed at round start): the ramp tier (BOT_TIERS[PROG.tier], the default) or, with S.botAuto off,
+   Its numbers (BOT.P, fixed at round start): skill matching (strProfile(PROG.str), the default) or, with S.botAuto off,
    the ⚙ sliders / Easy-Normal-Hard chips. Later each level brings its own bot.
    Where it kicks from: BOT.from (set by placeBot from the layout) and BOT.side (1 = the player's side, kicking toward -z).
    A bot on the far side of the wall would be side -1, kicking toward +z; that needs crossPlane to judge a +z crossing too. */
@@ -44,22 +45,28 @@ function placeBot(){
 }
 /* ---------- progress on this device: drives the difficulty ramp and the one-time warm-up (vs.js) ---------- */
 const PROG_KEY='windowSmashDuel.prog';
-let PROG={played:0,wr:0,lr:0,tier:0,warm:false,mills:false,v:0}; /* warm: practice match done; mills: windmill banner shown */
+let PROG={played:0,str:0,warm:false,mills:false,v:0}; /* str: opponent strength 0..1; warm: practice done; mills: windmill banner shown */
 try{Object.assign(PROG,JSON.parse(localStorage.getItem(PROG_KEY)||'{}'))}catch(e){}
 const progSave=()=>{try{localStorage.setItem(PROG_KEY,JSON.stringify(PROG))}catch(e){}};
-/* v2 (2026-11-14): a 'tough' tier went in before 'hard' and the old hard was too quick: anyone above normal restarts at normal */
-if(PROG.v!==2){if(PROG.tier>2)PROG.tier=2;PROG.wr=0;PROG.v=2;progSave()}
-/* a finished match against the bot: move the tier */
-function progRecord(win){
+/* v3 (2026-11-14): tiers became one strength dial; carry the old tier over (at most normal) */
+if(PROG.v!==3){PROG.str=clamp((Math.min(PROG.tier|0,2))/4,0,.5);PROG.v=3;progSave()}
+const STR_GOAL=.88; /* the opponent should score about this share of the player's score */
+/* a finished match against the bot (scores p = player, b = opponent): move the dial toward a close game */
+function progRecord(p,b){
   const P=PROG;P.played++;
-  if(win){P.wr++;P.lr=0;if(P.wr>=3){P.tier++;P.wr=0}}else{P.lr++;P.wr=0;if(P.lr>=2){P.tier--;P.lr=0}} /* 3 wins up, 2 losses down */
-  if(P.played===2)P.tier=Math.max(P.tier,1); /* after the 2 rookie matches: easy (and normal from match 6, unless losing) */
-  if(P.played===5)P.tier=Math.max(P.tier,2);
-  P.tier=P.played<2?0:clamp(P.tier,0,P.played<5?1:P.played<10?3:BOT_TIERS.length-1); /* hard only from match 10 */
+  if(P.played>2){const r=b/Math.max(1,p),e=clamp(STR_GOAL-r,-.6,.6);P.str+=.35*e} /* 20-8: +.17; 12-11: about 0; lose 10-16: -.21 */
+  if(P.played===2)P.str=Math.max(P.str,.25); /* after the 2 rookie matches */
+  P.str=P.played<2?0:clamp(P.str,0,P.played<5?.25:P.played<10?.75:1);
   progSave();
 }
+/* the opponent's numbers at strength s: blended between the neighbouring BOT_TIERS anchors */
+function strProfile(s){
+  const n=BOT_TIERS.length-1,u=clamp(s,0,1)*n,i=Math.min(n-1,Math.floor(u)),f=u-i,A=BOT_TIERS[i],B=BOT_TIERS[i+1],o={};
+  for(const k in A){const a=A[k],b=B[k];o[k]=typeof a==='number'?lerp(a,b,f):Array.isArray(a)?a.map((x,j)=>lerp(x,b[j],f)):a}
+  return o;
+}
 function botProfile(){
-  if(S.botAuto)return Object.assign({},BOT_TIERS[clamp(PROG.tier|0,0,BOT_TIERS.length-1)]);
+  if(S.botAuto)return strProfile(PROG.played<2?0:PROG.str);
   return {botGood:S.botGood,botBad:S.botBad,botErr:S.botErr,botBias:S.botBias,botSmart:S.botSmart,botThink:S.botThink,minThink:0,prizeP:.65,prizeWait:[.9,1.4]};
 }
 function botBall(){const b=makeBall(BOT.from.x,BOT.from.z);b.owner='bot';BOT.ball=b}
@@ -74,7 +81,7 @@ const botLead=()=>VS.score.bot-VS.score.p;
 /* while 2+ ahead it slows down (and gets careless, see rollShot) */
 const botEaseK=()=>{const lead=botLead();return lead>=2?1+S.botEase*Math.min(3,lead-1):1};
 function thinkDelay(){
-  let d=Math.max(BOT.P.minThink||0,BOT.P.botThink*rnd(.75,1.3))*botEaseK()*(botLead()<=-2?1.1:1);
+  const lead=botLead();let d=Math.max(BOT.P.minThink||0,BOT.P.botThink*rnd(.75,1.3)*(lead<=-5?.9:1))*botEaseK(); /* 5+ behind: a little quicker, never under minThink */
   if(Math.random()<1/6)d=Math.max(d,rnd(1.5,2.5)); /* now and then a longer look around */
   BOT.thought=d;return d}
 /* its habit for this match: a fixed lean, more often up/down than sideways */
@@ -96,7 +103,7 @@ function rollShot(p){
   /* how hard this window is: far / high, small, moving */
   const far=Math.hypot(c.x-BOT.from.x,c.y-2*A)/A,hard=1+clamp((far-4)/8,0,.5)+Math.min(.5,Math.abs(p.vx||0)*.15/A)+(p.w*p.h<3*A*A?.2:0);
   const rush=BOT.thought<BOT.P.botThink*.85?1.15:BOT.thought>BOT.P.botThink*1.4?.9:1; /* a quick kick is sloppier, a long look steadier */
-  const lead=botLead(),press=lead>=2?1+S.botEase*Math.min(3,lead-1)*.35:lead<=-2?.85:1;
+  const lead=botLead(),press=lead>=2?1+S.botEase*Math.min(3,lead-1)*.35:lead<=-5?.8:lead<=-2?.9:1; /* behind: it focuses */
   const m=hard*rush*press*(p.gold?1.25:1); /* the gold window: a rushed, greedy shot */
   let bad=Math.min(.7,BOT.P.botBad*m);if(BOT.misses>=2)bad=0;else if(BOT.misses===1)bad*=.5;
   const good=BOT.misses>=2?1:clamp(BOT.P.botGood/m,0,1-bad),r=Math.random(),q=r<bad?'bad':r<bad+good?'good':'okay'; /* after 2 misses in a row: a good one */

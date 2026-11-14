@@ -3,12 +3,14 @@ const T=THREE, $=id=>document.getElementById(id);
 const rnd=(a,b)=>a+Math.random()*(b-a), clamp=(v,a,b)=>Math.min(b,Math.max(a,v)), lerp=(a,b,t)=>a+(b-a)*t;
 
 /* ---------- settings ---------- */
-const DEF={mode:'live',power:5.5,loft:.5,side:1,lift:1,gravity:16,grab:1.5,ring:3,speed:30,curve:1,snap:.2,reach:1.5,flick:1,reachP:1,arcP:.5,pMax:36,preview:.4,arena:1.7,freeze:85,slow:.3,shake:1,shards:1,sound:true,glSkyOn:false, /* sky drift off by default (renamed from glSky so old saved 'on' values don't bring it back) */ glints:true,
+const DEF={mode:'live',power:5.5,loft:.5,side:1,lift:1.4,gravity:16,grab:1.5,ring:3,speed:30,curve:1,snap:.2,reach:1.5,flick:1,reachP:1,arcP:.5,pMax:36,preview:.4,arena:1.7,freeze:85,slow:.3,shake:1,shards:1,sound:true,glSkyOn:false, /* sky drift off by default (renamed from glSky so old saved 'on' values don't bring it back) */ glints:true,
   /* VS round and bot (see bot.js / vs.js) */
   round:60,live:4,turns:0,botAuto:true,botGood:.5,botBad:.27,botErr:.45,botBias:.22,botSmart:.4,botThink:1,botEase:.35,botWindup:.45,botFlight:.8};
 const KEY='windowSmashDuel.v1'; /* its own key: the original game's saved settings stay separate */
 let S=Object.assign({},DEF);
-try{Object.assign(S,JSON.parse(localStorage.getItem(KEY)||'{}'))}catch(e){}
+try{const sv=JSON.parse(localStorage.getItem(KEY)||'{}');
+  if(!sv.lift14){sv.lift=DEF.lift;sv.lift14=true;try{localStorage.setItem(KEY,JSON.stringify(Object.assign({},S,sv)))}catch(e){}} /* 2026-11-14: height steering default 1 -> 1.4, applied once to saved settings too */
+  Object.assign(S,sv)}catch(e){}
 /* bot difficulty presets (the Easy / Normal / Hard chips set these; the sliders fine-tune). Later, each level brings its own
    bot with its own numbers. good/bad = chance of a good / bad (missing) kick, the rest are okay kicks near the edge;
    err = spread of a good kick (m); bias = size of its personal habit (m); smart = chance it times kicks past the windmills.
@@ -16,9 +18,10 @@ try{Object.assign(S,JSON.parse(localStorage.getItem(KEY)||'{}'))}catch(e){}
 const BOT_PRESETS={easy:{botGood:.35,botBad:.4,botErr:.55,botBias:.3,botSmart:0,botThink:1.5},
   normal:{botGood:.5,botBad:.27,botErr:.45,botBias:.22,botSmart:.4,botThink:1},
   hard:{botGood:.68,botBad:.13,botErr:.35,botBias:.15,botSmart:.85,botThink:.65}};
-/* The difficulty ramp (S.botAuto, the default): the opponent you meet depends on how you've been doing on this device
-   (PROG in bot.js). Tier 0 'rookie' for the first 2 matches, at most 'easy' until match 5, at most 'tough' until match 10;
-   3 wins in a row = one tier up, 2 losses in a row = one down.
+/* Skill matching (S.botAuto, the default): the opponent's strength is one dial, PROG.str 0..1 (bot.js), blended between
+   these five anchors (0, .25, .5, .75, 1). After each match it moves toward a close game: the opponent should score about
+   88% of the player's score (big wins push it up a lot, near-misses barely move it). Rookie for the first 2 matches,
+   at most .25 until match 5 and .75 until match 10.
    Human pacing: minThink = shortest pause before a kick (s); about 1 kick in 6 gets a longer look (1.5-2.5 s).
    Gold window: prizeP = chance it goes for it at all, prizeWait = how long before it notices (s); its gold shots are rushed.
    Hidden from players for now (no names on screen). */

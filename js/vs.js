@@ -4,7 +4,7 @@
    Every facade window sits behind a game-driven roller shutter. S.live of them are open at a time. A broken window is
    shuttered 0.7 s later and re-glazed behind the shutter while another one opens elsewhere (whack-a-mole), so the wall stays
    fresh to the end. Now and then one extra window opens with gold glass (LVL.prize.pts points, tagged "+3") for a few seconds.
-   Breaks are credited by the ball's owner ('p' or 'bot'); the frame takes the breaker's colour and keeps it while shut, and
+   Breaks are credited by the ball's owner ('p' or 'bot'); a wired (two-kick) window is worth 2 to whoever finishes it; the frame takes the breaker's colour and keeps it while shut, and
    a "+1" rises over the scorer's kick spot. A draw at the bell goes to sudden death: the next point wins.
    Warm-up (once per device, the first timed match vs the bot): no opponent, no clock, no gold; smash 2 windows (they
    don't score), then "HERE COMES YOUR OPPONENT!", it pops in, the clock starts. VS.warm: 1 = warming up, 2 = arriving.
@@ -212,7 +212,7 @@ function onBreak(p,b){
   const who=b.owner==='bot'?'bot':'p',gets=VS.tb?p.side:who; /* turn mode: the half's owner scores, whoever kicked */
   if(VS.warm){tintFrame(p,TEAM[who]);later(.7,()=>{if(VS.on&&p.shutGoal===0)closeWin(p)});if(!hintDone)updateHint();
     if(VS.warm===1){VS.warmN++;pop(VS.warmN>=2?'GREAT!':'NICE!',p.x,p.y+p.h*.7,0,true);if(VS.warmN>=2)warmEnd()}return} /* warm-up: no points */
-  if(!VS.over){const pts=VS.tb?1:p.gold&&LVL.prize?LVL.prize.pts:1;VS.score[gets]+=pts;drawScore(gets);gainPop(gets,pts);VS.st[who].s++;if(pts>1)VS.st[who].g++}
+  if(!VS.over){const pts=VS.tb?1:p.gold&&LVL.prize?LVL.prize.pts:p.hp0>1?2:1;VS.score[gets]+=pts;drawScore(gets);gainPop(gets,pts);VS.st[who].s++;if(p.gold)VS.st[who].g++} /* wired (two-kick) glass: 2 to whoever breaks it */
   if(VS.tb){if(p.inner)p.inner.visible=true}else tintFrame(p,TEAM[who]); /* turn mode: frames keep the half's colour; a dark room shows */
   if(VS.tb&&!VS.over&&VS.score[gets]>=halfCount(gets))later(.45,endRound); /* half cleared: instant win */
   if(p===VS.prize){VS.prize=null;VS.prizeT=prizeGap()}
@@ -226,7 +226,7 @@ function endRound(){
   if(clock)clock.set(0,true,false);sfx.boom();
   panes.forEach((p,i)=>{if(p.vs&&p.shutGoal===0)later(.2+i*.04,()=>closeWin(p))});
   const pw=VS.score.p>VS.score.bot;
-  if(OPP.mode==='bot'&&!sandbox)progRecord(pw); /* the difficulty ramp (bot.js) */
+  if(OPP.mode==='bot'&&!sandbox)progRecord(VS.score.p,VS.score.bot); /* skill matching (bot.js) */
   const loc=OPP.mode==='local',word=loc?(pw?'PLAYER 1 WINS!':'PLAYER 2 WINS!'):pw?'YOU WIN!':OPP.mode==='net'&&!OPP.quick?'FRIEND WINS':'OPPONENT WINS';
   later(.7,()=>{endPanel(word,pw);$('win').hidden=false;
     if(pw||loc){burstConfetti();sfx.win()}else sfx.lost();
