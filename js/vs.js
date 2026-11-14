@@ -19,7 +19,7 @@ function vsStart(L){
   drawScore();if(clock)clock.set(1,false,false);
   if(OPP.mode==='bot')botReady();else botSpot.visible=true; /* a person plays red: no robot */
   if(VS.tb)beginTurn(OPP.mode==='net'&&!NET.host?'bot':'p') /* turn mode: blue starts; online, whoever created the game */
-  const go=()=>later(.8,()=>{if(!VS.on)return;VS.started=true;if(VS.tb)SHUF.played=true;if(!VS.tb)botStart()}); /* the first shutters rolling up are the start signal */
+  const go=()=>{if(VS.tb)roundIntro();later(.8,()=>{if(!VS.on)return;VS.started=true;if(VS.tb)SHUF.played=true;if(!VS.tb)botStart()})}; /* the first shutters rolling up are the start signal */
   if(tapped)go();else startGo=go; /* very first round waits for the tap-to-play gate (ui.js) */
 }
 /* Start gate: the round waits behind the menu until a mode is picked (ui.js startMode, which reloads the round with
@@ -68,6 +68,28 @@ function turnPanes(ps){
   ps.forEach(p=>{if(!p.vs)return;delete p.shutter;delete p.hp;p.pts=1;if(!p.side)p.side=p.x<0?'p':'bot';p.fc=FRAME_SIDE[p.side]});
 }
 const shuffled=()=>!!SHUF.pat&&SHUF.pat.some(b=>!b);
+/* Round start (turn mode): your windows light up in your colour (three pulses: a tint on the glass and a glowing outline
+   around the frame) while a banner says what to do. Every round, since the windows are shuffled between rounds.
+   Pass-and-play lights both sides, each in its own colour. */
+function roundIntro(){
+  const sides=OPP.mode==='local'?['p','bot']:['p'],k=ak(),hl=[];
+  panes.forEach(p=>{if(!p.vs||!sides.includes(p.side)||!p.mesh)return;const c=TEAM[p.side];
+    const fill=new T.Mesh(p.mesh.geometry,new T.MeshBasicMaterial({color:c,transparent:true,opacity:0,depthWrite:false,side:T.DoubleSide}));
+    fill.position.z=.004;fill.renderOrder=5;p.mesh.add(fill); /* rides with the glass: gone if it breaks */
+    const o=.45*k,i=.22*k,sh=new T.Shape(),hole=new T.Path(),W=p.w/2,H=p.h/2;
+    sh.moveTo(-W-o,-H-o);sh.lineTo(W+o,-H-o);sh.lineTo(W+o,H+o);sh.lineTo(-W-o,H+o);sh.closePath();
+    hole.moveTo(-W-i,-H-i);hole.lineTo(-W-i,H+i);hole.lineTo(W+i,H+i);hole.lineTo(W+i,-H-i);hole.closePath();sh.holes.push(hole);
+    const ring=new T.Mesh(new T.ShapeGeometry(sh),new T.MeshBasicMaterial({color:c,transparent:true,opacity:0,depthWrite:false}));
+    ring.position.set(p.x,p.y,.3);ring.renderOrder=5;group.add(ring);hl.push(fill,ring)});
+  const t0=lt,dur=2.4;
+  movers.push(t=>{const u=t-t0;if(u>dur+.3){hl.forEach(m=>m.visible=false);return}
+    const a=u<dur?Math.pow(Math.sin(Math.PI*u/.8),2):0;hl.forEach((m,j)=>m.material.opacity=a*(j%2?.95:.55))});
+  const b=$('intro'),loc=OPP.mode==='local';
+  b.innerHTML=loc?'SMASH ALL YOUR WINDOWS FAST TO WIN!<small><span class="you">PLAYER 1: BLUE</span> · <span class="bot">PLAYER 2: RED</span></small>'
+    :'SMASH ALL <span class="you">BLUE</span> WINDOWS FAST TO WIN!';
+  b.hidden=false;b.classList.remove('go');void b.offsetWidth;b.classList.add('go');
+  clearTimeout(roundIntro.t);roundIntro.t=setTimeout(()=>b.hidden=true,3200);
+}
 const halfCount=who=>panes.filter(p=>p.vs&&p.side===who).length;
 function beginTurn(who){
   if(VS.over)return;
@@ -163,7 +185,7 @@ function onBreak(p,b){
 }
 function endRound(){
   if(VS.over||!VS.on)return;VS.over=true;won=true;winAt=performance.now();botStop();
-  if(drag){drag=null;hidePreview()}$('hint').hidden=true;$('tags').hidden=true;
+  if(drag){drag=null;hidePreview()}$('hint').hidden=true;$('tags').hidden=true;$('intro').hidden=true;
   if(clock)clock.set(0,true,false);sfx.boom();
   panes.forEach((p,i)=>{if(p.vs&&p.shutGoal===0)later(.2+i*.04,()=>closeWin(p))});
   const pw=VS.score.p>VS.score.bot;

@@ -56,6 +56,13 @@ html,body{height:100%;margin:0;overflow:hidden;background:#8fd0ee;font-family:va
 .pop.small{font-size:clamp(24px,4.6vw,46px);color:var(--gold);-webkit-text-stroke:2px var(--ink);text-shadow:0 3px 0 var(--ink)}
 @keyframes pop{0%{transform:translate(-50%,-50%) scale(.2) rotate(-14deg);opacity:0}16%{transform:translate(-50%,-50%) scale(1.15) rotate(-6deg);opacity:1}70%{transform:translate(-50%,-70%) scale(1) rotate(-5deg);opacity:1}100%{transform:translate(-50%,-105%) scale(.92) rotate(-5deg);opacity:0}}
 /* Round over: one big word in the upper third (YOU WIN! in gold, BOT WINS in red), then Play again (or tap anywhere) */
+/* round-start banner (turn mode): what to smash */
+#intro{position:absolute;left:0;right:0;top:24%;padding:0 16px;text-align:center;pointer-events:none;z-index:11;font:400 clamp(24px,6.4vw,44px)/1.1 var(--display);color:#fff;-webkit-text-stroke:3px var(--ink);paint-order:stroke fill;text-shadow:0 4px 0 var(--ink);letter-spacing:.5px}
+#intro small{display:block;margin-top:8px;font-size:.55em}
+#intro .you{color:#8fd0ff}#intro .bot{color:#ff9b8c}
+#intro.go{animation:introIn 3.2s ease-out forwards}
+@keyframes introIn{0%{transform:scale(.4) rotate(-6deg);opacity:0}10%{transform:scale(1.08) rotate(-2deg);opacity:1}16%,80%{transform:scale(1) rotate(-2deg);opacity:1}100%{transform:scale(1) rotate(-2deg) translateY(-14px);opacity:0}}
+@media (prefers-reduced-motion:reduce){#intro.go{animation:pulse 3.2s linear forwards}}
 #win{position:absolute;left:0;right:0;top:17%;padding:0 16px;text-align:center;pointer-events:none;z-index:12}
 #win h2{margin:0;font:400 clamp(54px,13vw,120px) var(--display);color:var(--gold);-webkit-text-stroke:4px var(--ink);paint-order:stroke fill;text-shadow:0 7px 0 var(--ink);letter-spacing:1px;animation:winIn .5s cubic-bezier(.2,1.6,.4,1) both}
 #win.lose h2{color:var(--bot)}

@@ -56,7 +56,7 @@ function clearLevel(){
   balls.forEach(removeBallMesh);balls.length=0;
   if(cur){removeBallMesh(cur);cur=null}
   botClear();netClear();
-  spark.clear();dust.clear();timers=[];$('win').hidden=true;$('again').hidden=true;$('rematch').hidden=true;$('wipe').classList.remove('on');
+  spark.clear();dust.clear();timers=[];$('win').hidden=true;$('intro').hidden=true;$('again').hidden=true;$('rematch').hidden=true;$('wipe').classList.remove('on');
   retrying=false;confetti.length=0;fctx.clearRect(0,0,W_,H_);
   obs=[];movers=[];lt=0;wind=0;wheel=null;hinges=[];clock=null;VS.on=false;
 }
