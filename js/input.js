@@ -39,8 +39,11 @@ function liveDown(e){
   if(!f&&(!cur||cur.born<.12))return;
   try{canvas.setPointerCapture(e.pointerId)}catch(x){}
   if(f){drag={id:e.pointerId,pts:[pt],last:pt,top:pt.y,steer:f};return}
-  const bp=ballPx();drag={id:e.pointerId,pts:[pt],last:pt,top:pt.y,topX:pt.x,armed:Math.hypot(pt.x-bp.x,pt.y-bp.y)<=bp.r*S.grab};
-  if(drag.armed)turnGrab();
+  /* Press anywhere: the press point stands in for the ball. Every point of this drag is shifted by off, so the swipe
+     reads exactly as if it had started on the ball (direction, speed, height ceiling); no need to come back to the ball. */
+  const bp=ballPx(),off={x:bp.x-pt.x,y:bp.y-pt.y},vp={x:bp.x,y:bp.y,t:pt.t};
+  drag={id:e.pointerId,pts:[vp],last:vp,top:vp.y,topX:vp.x,armed:true,off};
+  turnGrab();
 }
 /* Steering after the kick nudges the ball's velocity (aftertouch); the flight stays a real arc.
    Lift is budgeted per kick so a weak kick still falls short. */
@@ -51,7 +54,7 @@ function applySteer(b,dx,dy){
   const dv=clamp(-dy*gainHigh*S.lift/tr,-b.P-b.lift,b.P*.25-b.lift);b.lift+=dv;b.vn+=dv;
 }
 function liveMove(e){
-  const d=drag,pt=point(e);d.pts.push(pt);if(d.pts.length>120)d.pts.splice(0,1);if(pt.y<d.top){d.top=pt.y;d.topX=pt.x}
+  const d=drag,pt=point(e);if(d.off){pt.x+=d.off.x;pt.y+=d.off.y} /* press-anywhere drag: in ball-relative screen space */d.pts.push(pt);if(d.pts.length>120)d.pts.splice(0,1);if(pt.y<d.top){d.top=pt.y;d.topX=pt.x}
   if(d.steer){const b=d.steer;if(b.plus){d.last=pt;return} /* Live+: no aftertouch */
     if(pt.y<b.topY)b.topY=pt.y;
     if(b.live&&b.state==='fly')applySteer(b,pt.x-d.last.x,pt.y-d.last.y);d.last=pt;return}
