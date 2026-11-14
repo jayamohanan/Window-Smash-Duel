@@ -43,7 +43,7 @@ function thinkDelay(){return S.botThink*rnd(.75,1.3)*botEaseK()}
 function botPick(){
   const open=panes.filter(p=>p.vs&&isOpen(p)&&!p.aimOff&&!p.narrow&&(!VS.tb||p.side==='bot'));if(!open.length)return null; /* turn mode: only its own half */
   const pr=VS.prize;if(pr&&isOpen(pr)&&VS.t-pr.openAt>.5&&Math.random()<.8)return pr;
-  if(Math.random()<.55){let best=open[0],bd=1e9;open.forEach(p=>{const d=Math.hypot(p.x-BOT.from.x,(p.y-3)*1.3);if(d<bd){bd=d;best=p}});return best}
+  if(Math.random()<.55){let best=open[0],bd=1e9;open.forEach(p=>{const d=Math.hypot(p.x-BOT.from.x,(p.y-3*ak())*1.3);if(d<bd){bd=d;best=p}});return best}
   return open[Math.floor(Math.random()*open.length)];
 }
 function aimYaw(p){const dx=(p.c?p.c.x:p.x)-BOT.from.x,dz=(p.c?p.c.z:0)-BOT.from.z;BOT.yawGoal=Math.atan2(-dx,-dz)}
@@ -51,10 +51,10 @@ const gauss=()=>(Math.random()+Math.random()+Math.random()-1.5)/1.5; /* -1..1, b
 function botKick(){
   const b=BOT.ball,p=BOT.target;if(!b||!p){BOT.st='think';BOT.t=.2;return}
   BOT.ball=null;BOT.ballT=.45;
-  const TT=S.botFlight*rnd(.92,1.08),k=botEaseK(),err=S.botErr*(1+(k-1)*.5),c=p.c||p;
+  const A=ak(),TT=S.botFlight*Math.sqrt(A)*rnd(.92,1.08),k=botEaseK(),err=S.botErr*A*(1+(k-1)*.5),c=p.c||p; /* long kick: longer flight, error in proportion to the bigger windows */
   let ex,ey;
   if(Math.random()<S.botMiss){ /* a deliberate miss: just off the glass, onto the frame or wall */
-    if(Math.random()<.6){ex=(Math.random()<.5?-1:1)*(p.w/2+rnd(.2,.7));ey=gauss()*p.h*.3}else{ex=gauss()*p.w*.3;ey=(Math.random()<.5?-1:1)*(p.h/2+rnd(.2,.6))}}
+    if(Math.random()<.6){ex=(Math.random()<.5?-1:1)*(p.w/2+rnd(.2,.7)*A);ey=gauss()*p.h*.3}else{ex=gauss()*p.w*.3;ey=(Math.random()<.5?-1:1)*(p.h/2+rnd(.2,.6)*A)}}
   else{ex=gauss()*err;ey=gauss()*err*.8}
   const tgt=new T.Vector3(c.x+(p.vx||0)*TT+ex,Math.max(R+.2,c.y+ey),p.c?c.z+.1:ZF);
   const v0=solveArc(b.p,tgt,TT,new T.Vector3(wind*.85,-S.gravity,0)); /* it knows the wind, roughly */

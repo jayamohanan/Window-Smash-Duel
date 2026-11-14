@@ -11,7 +11,7 @@
    The windmills are kept in step by copying the kicker's mechanics clock (lt) at each kick. The two screens may place
    the kick spots differently, so the friend's ball is remapped from their spot to ours (puppetStep). Messages are JSON strings. */
 const GAME_ID='d0eb2e6d-a84f-4577-8470-fa110135d28b'; /* development ID: replace with the Poki game ID before release */
-const NET_VER=1; /* bump when the online messages or rules change: quick match only pairs players on the same version */
+const NET_VER=2; /* bump when the online messages or rules change: quick match only pairs players on the same version */
 const NET={nw:null,peer:null,host:false,code:'',id:0,snapT:0,off:Infinity,out:[],in:{},idle:null,timer:0,
   quick:false,findT:0,scanT:0,joinT:0,bad:[],rmMe:false,rmThem:false,seed:1,classic:false,round:-1};
 const nowS=()=>performance.now()/1000,r3=v=>Math.round(v*1000)/1000;

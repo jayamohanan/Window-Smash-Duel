@@ -10,7 +10,15 @@
    mills:[{x,y,z,len,speed,dir,plate}] = windmills on the wall; wind = sideways push (m/s²); board = sliding barrier;
    wheel = gap wheel; gantry = overhead beam for hang:true rail windows; spin:[pane indexes] = spin boards in front of those;
    carousel / flip = see mech.js; tut = swipe hint until the first kick. */
-const PED={w:1.6,h:.9}; /* raised centre of the facade: half-width, then a half-round top of radius w, centre h above H */
+const PED0={w:1.6,h:.9},PED={w:1.6,h:.9}; /* raised centre of the facade: half-width, then a half-round top of radius w, centre h above H (PED = PED0 × arena scale) */
+/* Long kick: the facade is built S.arena times bigger (windows, wall, mills), and layout() moves the kick spots back so the
+   wall fills the same part of the screen. The ball, players and camera-to-ball distance stay real size, so the ball now
+   shrinks into the distance on its way to a big, far-off wall, like a long free kick. */
+const ak=()=>LVL&&LVL.ak||1;
+function scaleLevel(L){const k=L.type==='facade'?S.arena:1;if(k===1)return L;
+  const sp=p=>Object.assign({},p,{x:p.x*k,y:p.y*k,w:p.w*k,h:p.h*k});
+  return Object.assign({},L,{ak:k,W:L.W*k,H:L.H*k,panes:L.panes.map(sp),
+    mills:L.mills&&L.mills.map(m=>Object.assign({},m,{x:m.x*k,y:m.y*k,len:m.len*k,plate:m.plate*k,s:k}))})}
 /* windows in a grid (row by row, bottom first); extra[i] adds fields to window i */
 function grid(xs,ys,w,h,extra){const a=[];ys.forEach(y=>xs.forEach(x=>{a.push(Object.assign({x,y,w,h,vs:true,shutter:{ctrl:true}},extra&&extra[a.length]||{}))}));return a}
 const LV=[
@@ -52,7 +60,7 @@ function clearLevel(){
   retrying=false;confetti.length=0;fctx.clearRect(0,0,W_,H_);
   obs=[];movers=[];lt=0;wind=0;wheel=null;hinges=[];clock=null;VS.on=false;
 }
-function makeFrame(p,parent,c){const f=.2,z=.1;
+function makeFrame(p,parent,c){const f=.2*Math.sqrt(ak()),z=.1; /* bigger windows, slightly sturdier frames */
   p.frame=[box(p.w+f*2,f,.34,c,p.x,p.y+p.h/2+f/2,z,parent),box(p.w+f*2,f,.34,c,p.x,p.y-p.h/2-f/2,z,parent),
     box(f,p.h,.34,c,p.x-p.w/2-f/2,p.y,z,parent),box(f,p.h,.34,c,p.x+p.w/2+f/2,p.y,z,parent)]}
 function tintFrame(p,c){(p.frame||[]).forEach(m=>m.material=mat(c))}
@@ -84,7 +92,7 @@ function buildFacade(L){
   [-1,1].forEach(s=>box(.4,H+.3,.62,0xd8bf95,s*(W+.05),(H+.3)/2,ZF-.19,g)); /* corner posts */
   panes.forEach(p=>{makeFrame(p,g,p.fc||FRAME);makePane(p,g);
     if(p.side)p.inner=roomBehind(p,g)});
-  if(!tb)clock=buildClock(0,H+ph,1); /* turn mode has no clock: the footballs in the turn pill count kicks */
+  if(!tb)clock=buildClock(0,H+ph,ak()); /* turn mode has no clock: the footballs in the turn pill count kicks */
 }
 /* Is (x,y) on the facade's solid wall (the window holes are checked before this)? */
 function facadeAt(x,y){const W=LVL.W,H=LVL.H;if(Math.abs(x)>W+.25||y<0)return false;if(tbOn())return y<=H+.05;if(y<=H+.05)return true;if(Math.abs(x)>PED.w)return false;const dy=y-H-PED.h;return dy<=0||Math.hypot(x,dy)<=PED.w+.05}
@@ -118,7 +126,7 @@ function buildStand(L){
     movers.push(at)});
 }
 function loadLevel(i){
-  clearLevel();sandbox=false;level=(i+LV.length)%LV.length;LVL=LV[level];
+  clearLevel();sandbox=false;level=(i+LV.length)%LV.length;const k0=ak();LVL=scaleLevel(LV[level]);PED.w=PED0.w*ak();PED.h=PED0.h*ak();if(ak()!==k0)layout();
   group=new T.Group();scene.add(group);
   panes=(LVL.layout?LVL.layout():LVL.panes).map(p=>Object.assign({},p));if(tbOn())turnPanes(panes);placeSpots();lt=0;wind=LVL.wind||0;
   if(LVL.type==='facade')buildFacade(LVL);else if(LVL.type==='stand')buildStand(LVL);
@@ -130,7 +138,7 @@ function loadLevel(i){
 /* Dev sandbox: empty yard with unlimited balls, for testing kick feel and juice (no bot, no round). */
 let sandbox=false;
 function loadSandbox(){
-  clearLevel();sandbox=true;LVL={name:'Sandbox',type:'sandbox',panes:[]};placeSpots();
+  const k0=ak();clearLevel();sandbox=true;LVL={name:'Sandbox',type:'sandbox',panes:[]};PED.w=PED0.w;PED.h=PED0.h;if(k0!==1)layout();placeSpots();
   group=new T.Group();scene.add(group);panes=[];
   buildTestPanes();
   won=false;

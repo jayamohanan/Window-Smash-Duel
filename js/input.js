@@ -10,7 +10,7 @@ function shotFrom(d){
   const a=d.pts[0],e=d.pts[d.pts.length-1],t=new T.Vector3();
   if(S.mode==='aim'){ndc.set(e.x/W_*2-1,1-e.y/H_*2);ray.setFromCamera(ndc,camera);if(!ray.ray.intersectPlane(plane,hitV))hitV.set(0,3,ZF);t.copy(hitV)}
   else{const u=Math.min(W_,H_);t.set((e.x-a.x)/u*26,.4+(a.y-e.y)/u*15,ZF)}
-  t.x=clamp(t.x,-16,16);t.y=clamp(t.y,.35,13);t.z=ZF;
+  t.x=clamp(t.x,-16*ak(),16*ak());t.y=clamp(t.y,.35,13*ak());t.z=ZF;
   const side=cur?cur.owner:'p';
   let best=null,bd=1e9;panes.forEach(p=>{if(!isOpen(p)||p.xf||(VS.tb&&p.side!==side))return;const dd=Math.hypot(t.x-p.x,t.y-p.y),r=Math.hypot(p.w,p.h)/2+1.4;if(dd<r&&dd<bd){bd=dd;best=p}});
   if(best&&S.snap>0){t.x=lerp(t.x,best.x,S.snap);t.y=lerp(t.y,best.y,S.snap)}
@@ -74,7 +74,9 @@ function swipeVel(d){
   const dt=Math.max(.016,(e.t-a.t)/1000);return{x:(e.x-a.x)/dt,y:(e.y-a.y)/dt};
 }
 /* Live kick: swipe speed sets power, swipe direction sets heading, then gravity takes over.
-   Forward speed is scaled by D/13 so flight time and arc height match on every screen shape. */
+   Forward speed is scaled by D/13 so flight time and arc height match on every screen shape.
+   Long kick (arena ak() times bigger): flight time × √ak and launch height speed × √ak, so the arc is the old one scaled
+   up by ak under the same gravity: a real long ball that takes a moment longer to arrive. */
 function kickLive(bp,pt,d,pk){
   const b=cur;cur=null;b.live=true;b.state='fly';b.age=0;
   const sv=swipeVel(d),spd=(pk===undefined?Math.hypot(sv.x,sv.y):pk)/Math.min(W_,H_);
@@ -82,10 +84,11 @@ function kickLive(bp,pt,d,pk){
   const plus=S.mode==='livep';
   if(plus){kickPlus(b,bp,pt,spd);balls.push(b);d.steer=b;kickFx(b);return}
   let dx=sv.x,dy=sv.y;if(plus||spd<.2||dy>-1){dx=pt.x-bp.x;dy=pt.y-bp.y}
-  const rowY=toScreen(0,2.8,ZF)[1],k=(bp.y-rowY)/Math.max(1,-dy);
-  let xw=0;ndc.set((bp.x+dx*k)/W_*2-1,1-rowY/H_*2);ray.setFromCamera(ndc,camera);if(ray.ray.intersectPlane(plane,hitV))xw=clamp(hitV.x,-16,16);
-  b.P=P;b.lift=0;b.plus=false;b.vn=P*S.loft;b.baseY=bp.y;b.topY=Math.min(d.top,pt.y+Math.min(0,sv.y)*.08);
-  b.v.set((xw-b.p.x)*P/13,b.vn,-P*D/13);b.a.set(0,-S.gravity,0); /* sideways from the ball's own spot to the aimed wall point */
+  const rowY=toScreen(0,2.8*ak(),ZF)[1],k=(bp.y-rowY)/Math.max(1,-dy);
+  let xw=0;ndc.set((bp.x+dx*k)/W_*2-1,1-rowY/H_*2);ray.setFromCamera(ndc,camera);if(ray.ray.intersectPlane(plane,hitV))xw=clamp(hitV.x,-16*ak(),16*ak());
+  const q=Math.sqrt(ak()),tF=13*q/P; /* tF: time to reach the wall */
+  b.P=P*q;b.lift=0;b.plus=false;b.vn=P*S.loft*q;b.baseY=bp.y;b.topY=Math.min(d.top,pt.y+Math.min(0,sv.y)*.08);
+  b.v.set((xw-b.p.x)/tF,b.vn,-D/tF);b.a.set(0,-S.gravity,0); /* sideways from the ball's own spot to the aimed wall point */
   balls.push(b);d.steer=b;kickFx(b);
 }
 function kickFx(b){

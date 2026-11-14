@@ -181,15 +181,15 @@ function freePane(p,pos,rx,col){
 const sailTex=canvasTex(64,256,(g,w,h)=>{g.fillStyle='#f4ead2';g.fillRect(0,0,w,h);g.strokeStyle='#8a5f3b';g.lineWidth=5;g.strokeRect(2,2,w-4,h-4);g.lineWidth=3;for(let i=1;i<8;i++){g.beginPath();g.moveTo(0,i*h/8);g.lineTo(w,i*h/8);g.stroke()}g.beginPath();g.moveTo(w/2,0);g.lineTo(w/2,h);g.stroke()});
 sailTex.rotation=Math.PI/2;sailTex.center.set(.5,.5);
 function buildMill(o){
-  const g=group,len=o.len,n=o.n||4,sail=new T.MeshLambertMaterial({map:sailTex});
+  const g=group,len=o.len,n=o.n||4,sail=new T.MeshLambertMaterial({map:sailTex}),s=o.s||1; /* s: arena scale (long kick), sizes the parts */
   const pl=o.plate||1.1;box(pl,pl,.14,0x6b4a2c,o.x,o.y,.22,g);
-  addOb(box(.34,.34,o.z-.16,0x6b4a2c,o.x,o.y,(o.z+.16)/2,g),'wood');
+  addOb(box(.34*s,.34*s,o.z-.16,0x6b4a2c,o.x,o.y,(o.z+.16)/2,g),'wood');
   const rot=new T.Group();rot.position.set(o.x,o.y,o.z);g.add(rot);
-  const hub=new T.Mesh(new T.CylinderGeometry(.42,.48,.45,16),mat(0xb8432f));hub.rotation.x=Math.PI/2;hub.castShadow=true;rot.add(hub);
-  const cap=new T.Mesh(new T.SphereGeometry(.22,12,8),mat(0xffc53a));cap.position.z=.26;rot.add(cap);
+  const hub=new T.Mesh(new T.CylinderGeometry(.42*s,.48*s,.45,16),mat(0xb8432f));hub.rotation.x=Math.PI/2;hub.castShadow=true;rot.add(hub);
+  const cap=new T.Mesh(new T.SphereGeometry(.22*s,12,8),mat(0xffc53a));cap.position.z=.26;rot.add(cap);
   for(let k=0;k<n;k++){const arm=new T.Group();arm.rotation.z=k*Math.PI*2/n;rot.add(arm);
-    addOb(box(len,.17,.17,0x6b4a2c,len/2,0,0,arm),'wood');
-    addOb(box(len-.6,.45,.07,sail,(len+.6)/2,.275,.02,arm),'wood')} /* sail 0.45 wide, its inner edge along the arm */
+    addOb(box(len,.17*s,.17*s,0x6b4a2c,len/2,0,0,arm),'wood');
+    addOb(box(len-.6*s,.45*s,.07,sail,(len+.6*s)/2,.275*s,.02,arm),'wood')} /* sail 0.45 wide (× s), its inner edge along the arm */
   const dir=o.dir||(wind<0?1:-1); /* default: the tops of the sails move with the wind; no wind turns clockwise */
   movers.push(t=>{rot.rotation.z=dir*t*o.speed});
 }

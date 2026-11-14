@@ -9,7 +9,7 @@ function canvasTex(w,h,draw){const c=document.createElement('canvas');c.width=w;
 scene.background=canvasTex(8,256,(g,w,h)=>{const a=g.createLinearGradient(0,0,0,h);a.addColorStop(0,'#3f9fdf');a.addColorStop(.55,'#9bd6ef');a.addColorStop(.75,'#ffe9bf');g.fillStyle=a;g.fillRect(0,0,w,h)});
 const hemi=new T.HemisphereLight(0xffffff,0x93b56a,.72);scene.add(hemi);
 const sun=new T.DirectionalLight(0xfff1d6,.72); sun.position.set(-11,20,17); sun.castShadow=true;
-sun.shadow.mapSize.set(1024,1024); Object.assign(sun.shadow.camera,{left:-22,right:22,top:24,bottom:-16,near:1,far:70}); scene.add(sun);
+sun.shadow.mapSize.set(2048,2048);Object.assign(sun.shadow.camera,{left:-30,right:30,top:34,bottom:-26,near:1,far:110}); /* room for the bigger, farther arena (long kick) */ scene.add(sun);
 
 const mats={};
 const mat=c=>mats[c]||(mats[c]=new T.MeshLambertMaterial({color:c}));
@@ -64,8 +64,13 @@ function layout(){
   let fov,z;
   if(a>=1){fov=46;z=21;D=13}else{fov=62;z=Math.max(21,7.9/(Math.tan(31*Math.PI/180)*a));D=z-7.2}
   z+=2; /* camera a little further back so the ball sits higher on screen (D unchanged) */
-  camera.fov=fov;camera.aspect=a;camera.updateProjectionMatrix();camBase.set(0,3.2,z);camera.position.copy(camBase);camera.lookAt(camLook);camera.updateMatrixWorld();
-  gainHigh=gainX=2*Math.tan(fov/2*Math.PI/180)*z/H_;gainLow=(KNEE-R)/Math.max(60,toScreen(0,R,D)[1]-toScreen(0,KNEE,ZF)[1]);
+  /* Long kick: the facade is ak() times bigger, so put it ak() times further from the camera (same size on screen) and
+     move the kick spot back with it; the camera stays the same distance behind the ball. The camera drops a little so the
+     gap between the ball and the foot of the wall stays about the same on screen, and its tilt keeps the ball where it was. */
+  const k=ak(),off=z-D,cy=3.2-1.1*(k-1),pitch0=Math.atan2(-.2,z),aBall=Math.atan2(R-3.2,off)-pitch0;
+  z*=k;D=z-off;const pitch=Math.atan2(R-cy,off)-aBall;camLook.y=cy+z*Math.tan(pitch);
+  camera.fov=fov;camera.aspect=a;camera.updateProjectionMatrix();camBase.set(0,cy,z);camera.position.copy(camBase);camera.lookAt(camLook);camera.updateMatrixWorld();
+  gainHigh=gainX=2*Math.tan(fov/2*Math.PI/180)*z/H_;gainLow=(KNEE*ak()-R)/Math.max(60,toScreen(0,R,D)[1]-toScreen(0,KNEE*ak(),ZF)[1]);
   SHW=Math.tan(fov/2*Math.PI/180)*a*(camBase.z-D);placeSpots();
   sun.target.position.set(0,0,4);scene.add(sun.target);updateHint();
 }
