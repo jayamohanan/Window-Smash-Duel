@@ -2,13 +2,12 @@
 /* ---------- glass glare: makes intact windows read as glass, and broken ones (no glare at all) easy to tell apart.
    One overlay quad per pane (shares the pane's geometry, rides along with it, hides with it when it breaks).
    Two layers, each with a dev toggle:
-   - sky drift (S.glSky): faint light patches of a reflected sky drifting slowly across the glass. The pattern is laid out
+   - sky drift (S.glSkyOn, off by default): faint light patches of a reflected sky drifting slowly across the glass. The pattern is laid out
      in world metres, so neighbouring windows show different parts of the same sky.
-   - glints (S.glints): now and then a bright band sweeps once across one pane. Random gaps per pane, never two panes
-     at once (a short global cooldown), varied strength/width/direction, sometimes a double, rarely a chain across all panes.
-     Breaking a window makes the intact ones nearby shimmer. The last window glints more often.
-   Always on: the intro sweep at level start, left to right across every open pane, and one sweep on each window as its
-   shutter rolls up (glFresh). A gold (prize) window glints often. */
+   - glints (S.glints): now and then a single bright band sweeps once across one pane. Random gaps per pane, never two
+     panes at once (a short global cooldown). The last window glints more often.
+   Always on: one sweep on each window as its shutter rolls up (glFresh). A gold (prize) window glints often.
+   Kept deliberately plain (2026-11-14): no intro sweep, no row chains or doubles, no shimmer when a neighbour breaks. */
 const GLARE_V='varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}';
 const GLARE_F=`uniform float uS,uA,uW,uDir,uSky,uOff,uX0,uY0,uPW,uPH;varying vec2 vUv;
 void main(){
@@ -41,32 +40,18 @@ function glFresh(p){if(p.gl)glQueue(p,.32,{amp:1,dur:.5,w:.17,dir:1})}
 const glX=p=>p.mesh.matrixWorld.elements[12];
 function glStart(p,o){const g=p.gl;if(!g||p.broken)return;g.s=0;g.dur=o.dur||rnd(.35,.55);g.u.uA.value=o.amp;g.u.uW.value=o.w||rnd(.09,.18);g.u.uDir.value=o.dir||(Math.random()<.7?1:-1)}
 function glQueue(p,t,o){GL.queue.push({p,t,o})}
-/* level start: every pane in turn, left to right */
-function glIntro(delay){
-  scene.updateMatrixWorld();
-  const ps=glLive().sort((a,b)=>glX(a)-glX(b));
-  ps.forEach((p,i)=>{glQueue(p,delay+i*.13,{amp:1,dur:.55,w:.17,dir:1});p.gl.t=delay+i*.13+rnd(3,8)});
-  GL.cool=delay+ps.length*.13+.8;
-}
 function glRandom(p,live){
-  const g=p.gl,r=Math.random();GL.cool=rnd(.9,1.7);g.t=live.length===1?rnd(2.5,5):rnd(4,10);
-  if(r<.08&&live.length>2){const dir=Math.random()<.5?1:-1,ps=live.slice().sort((a,b)=>(glX(a)-glX(b))*dir); /* the sun catching a whole row */
-    ps.forEach((q,i)=>{glQueue(q,i*.12,{amp:.7,dur:.42,w:.13,dir});q.gl.t=Math.max(q.gl.t,i*.12+rnd(3,6))});GL.cool=ps.length*.12+1;return}
-  const amp=rnd(.55,.95);glStart(p,{amp});
-  if(r<.2)glQueue(p,g.dur+.12,{amp:amp*.6,dur:.3}); /* double glint */
+  const g=p.gl;GL.cool=rnd(.9,1.7);g.t=live.length===1?rnd(2.5,5):rnd(4,10);
+  glStart(p,{amp:rnd(.5,.8)});
 }
-/* a window broke: the intact ones nearby shimmer from the shake */
-function glareBreak(p){
-  if(!glOn()||!S.glints||!p.mesh)return;
-  const px=glX(p),py=p.mesh.matrixWorld.elements[13];
-  glLive().forEach(q=>{const d=Math.hypot(glX(q)-px,q.mesh.matrixWorld.elements[13]-py);if(d<8)glQueue(q,.08+d*.035,{amp:.45,dur:.3,w:.1})});
-}
+/* a window broke: no shimmer on the others (kept plain) */
+function glareBreak(p){}
 function glareTick(dt){
   if(!glOn())return;
-  if(panes!==GL.arr){GL.arr=panes;GL.queue=[];glIntro(.5)}
+  if(panes!==GL.arr){GL.arr=panes;GL.queue=[];GL.cool=1.5;glLive().forEach(p=>p.gl.t=rnd(3,8))}
   GL.time+=dt;GL.cool-=dt;
   for(let i=GL.queue.length-1;i>=0;i--){const q=GL.queue[i];q.t-=dt;if(q.t<=0){GL.queue.splice(i,1);glStart(q.p,q.o)}}
-  const live=glLive(),sky=S.glSky?1:0;
+  const live=glLive(),sky=S.glSkyOn?1:0;
   for(const p of live){const g=p.gl,u=g.u;
     if(g.s>=0){g.s+=dt/g.dur;if(g.s>=1)g.s=-1}
     else if(S.glints){g.t-=dt;if(p.gold&&g.t>1.3)g.t=1.3;if(g.t<=0){if(GL.cool>0&&!p.gold)g.t=rnd(.3,1.2);else glRandom(p,live)}}

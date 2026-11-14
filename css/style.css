@@ -4,7 +4,7 @@
 
 /* Layout: one full-bleed 3D yard; thin HUD along the top; cards float over the lawn. Single look, so no dark theme. */
 :root{
-  --ink:#23304a; --paper:#fff8e8; --glass:#bfe9ff; --brick:#d9503f; --gold:#ffc53a; --lawn:#5da845; --you:#3f8fe0; --bot:#e2513f;
+  --ink:#23304a; --paper:#fff8e8; --glass:#bfe9ff; --brick:#d9503f; --gold:#ffc53a; --lawn:#5da845; --you:#2a8a3e; --bot:#f08a24; --you-d:#1b5c29; --bot-d:#b05d10; --you-l:#8fe39c; --bot-l:#ffc27f;
   --display:"Lilita One","Trebuchet MS",sans-serif; --body:"Nunito","Trebuchet MS",sans-serif;
   color-scheme:light;
 }
@@ -16,18 +16,18 @@ html,body{height:100%;margin:0;overflow:hidden;background:#8fd0ee;font-family:va
 #fx{pointer-events:none}
 .hud{position:absolute;top:calc(10px + env(safe-area-inset-top,0px));left:max(12px,env(safe-area-inset-left,0px));right:max(12px,env(safe-area-inset-right,0px));display:flex;align-items:center;gap:10px;pointer-events:none}
 .spacer{flex:1}
-/* VS scores, centred at the top: blue = you, red = the bot (the same colours as the kick spots, ball trails and frames) */
+/* VS scores, centred at the top: green = you, orange = the opponent (the same colours as the kick spots, ball trails and frames) */
 #score{position:absolute;top:calc(10px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);display:flex;gap:6px;pointer-events:none}
 #score b{min-width:62px;box-sizing:border-box;text-align:center;font:400 34px/1 var(--display);color:#fff;padding:9px 14px;border-radius:12px;font-variant-numeric:tabular-nums;-webkit-text-stroke:1px rgba(35,48,74,.35)}
-#score .you{background:var(--you);box-shadow:0 3px 0 #2a64a3}
-#score .bot{background:var(--bot);box-shadow:0 3px 0 #a33427}
+#score .you{background:var(--you);box-shadow:0 3px 0 var(--you-d)}
+#score .bot{background:var(--bot);box-shadow:0 3px 0 var(--bot-d)}
 #score b.bump{animation:bump .35s cubic-bezier(.2,1.8,.4,1)}
 /* narrow phones: the bigger score moves to the top-left so it clears the pause / restart / sound buttons */
 @media (max-width:560px){#score{left:max(12px,env(safe-area-inset-left,0px));transform:none}}
 @keyframes bump{0%{transform:scale(1.45)}100%{transform:scale(1)}}
 /* "+1" over the scorer's kick spot, rising and fading (gold "+3" for the gold window) */
 .gain{position:absolute;font:400 34px/1 var(--display);-webkit-text-stroke:3px var(--ink);paint-order:stroke fill;text-shadow:0 3px 0 var(--ink);pointer-events:none;transform:translate(-50%,-50%);animation:gain 1.15s ease-out forwards;z-index:3;white-space:nowrap}
-.gain.you{color:#8fd0ff}.gain.bot{color:#ff9b8c}.gain.big{color:var(--gold);font-size:46px}
+.gain.you{color:var(--you-l)}.gain.bot{color:var(--bot-l)}.gain.big{color:var(--gold);font-size:46px}
 @keyframes gain{0%{transform:translate(-50%,-30%) scale(.4);opacity:0}15%{transform:translate(-50%,-60%) scale(1.15);opacity:1}60%{opacity:1}100%{transform:translate(-50%,-190%) scale(1);opacity:0}}
 /* Pause: dims the game; Resume card in the middle */
 #pause{position:absolute;inset:0;z-index:14;background:rgba(14,20,38,.5);display:grid;place-items:center;padding:16px}
@@ -59,7 +59,7 @@ html,body{height:100%;margin:0;overflow:hidden;background:#8fd0ee;font-family:va
 /* round-start banner (turn mode): what to smash */
 #intro{position:absolute;left:0;right:0;top:24%;padding:0 16px;text-align:center;pointer-events:none;z-index:11;font:400 clamp(24px,6.4vw,44px)/1.1 var(--display);color:#fff;-webkit-text-stroke:3px var(--ink);paint-order:stroke fill;text-shadow:0 4px 0 var(--ink);letter-spacing:.5px}
 #intro small{display:block;margin-top:8px;font-size:.55em}
-#intro .you{color:#8fd0ff}#intro .bot{color:#ff9b8c}
+#intro .you{color:var(--you-l)}#intro .bot{color:var(--bot-l)}
 #intro.go{animation:introIn 3.2s ease-out forwards}
 @keyframes introIn{0%{transform:scale(.4) rotate(-6deg);opacity:0}10%{transform:scale(1.08) rotate(-2deg);opacity:1}16%,80%{transform:scale(1) rotate(-2deg);opacity:1}100%{transform:scale(1) rotate(-2deg) translateY(-14px);opacity:0}}
 @media (prefers-reduced-motion:reduce){#intro.go{animation:pulse 3.2s linear forwards}}
@@ -95,7 +95,7 @@ html,body{height:100%;margin:0;overflow:hidden;background:#8fd0ee;font-family:va
 .mcard p.st{font-weight:900;color:var(--ink)}
 .mb{border:0;background:var(--brick);color:#fff;font:400 23px/1.05 var(--display);padding:12px 16px;border-radius:12px;cursor:pointer;box-shadow:0 5px 0 #9d3226;letter-spacing:.5px}
 .mb small{display:block;font:800 13px/1.3 var(--body);letter-spacing:0;opacity:.92}
-.mb.blue{background:var(--you);box-shadow:0 5px 0 #2a64a3}
+.mb.blue{background:#3f8fe0;box-shadow:0 5px 0 #2a64a3} /* menu buttons stay blue (not a team colour) */
 .mb.gold{background:var(--gold);color:var(--ink);box-shadow:0 5px 0 #b8861a}
 .mb.ink{background:var(--ink);box-shadow:0 5px 0 #121a2c}
 .mcard .spin{justify-self:center;animation:spin 1s linear infinite}
@@ -104,7 +104,7 @@ html,body{height:100%;margin:0;overflow:hidden;background:#8fd0ee;font-family:va
 /* end of a stranger match: Play again (new opponent) and Rematch (same one; both must ask) */
 .winbtns{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:18px}
 .winbtns #again{margin-top:0}
-#rematch{pointer-events:auto;border:0;background:var(--you);color:#fff;font:400 24px var(--display);padding:12px 26px;border-radius:12px;cursor:pointer;box-shadow:0 5px 0 #2a64a3}
+#rematch{pointer-events:auto;border:0;background:var(--you);color:#fff;font:400 24px var(--display);padding:12px 26px;border-radius:12px;cursor:pointer;box-shadow:0 5px 0 var(--you-d)}
 #rematch:disabled{opacity:.6;cursor:default}
 #rematch.ask{background:var(--gold);color:var(--ink);box-shadow:0 5px 0 #b8861a;animation:tapMe 1s ease-in-out infinite alternate}
 .mb:active{transform:translateY(2px)}
@@ -117,8 +117,8 @@ html,body{height:100%;margin:0;overflow:hidden;background:#8fd0ee;font-family:va
    footballs for its turn + kicks left beside its spot (yours on the left, the opponent's on the right). */
 #tags{position:absolute;inset:0;pointer-events:none}
 .tlabel{position:absolute;left:0;top:0;transform:translate(-50%,-100%);white-space:nowrap;font:400 18px/1 var(--display);color:#fff;padding:8px 13px;border-radius:999px;letter-spacing:.5px}
-.tlabel.you{background:var(--you);box-shadow:0 3px 0 #2a64a3}
-.tlabel.bot{background:var(--bot);box-shadow:0 3px 0 #a33427}
+.tlabel.you{background:var(--you);box-shadow:0 3px 0 var(--you-d)}
+.tlabel.bot{background:var(--bot);box-shadow:0 3px 0 var(--bot-d)}
 .tlabel.pop{animation:turnPop .4s cubic-bezier(.2,1.6,.4,1)}
 .tlabel.blink{animation:blink .8s ease-in-out infinite}
 @keyframes turnPop{from{transform:translate(-50%,-100%) scale(.6);opacity:0}to{transform:translate(-50%,-100%) scale(1);opacity:1}}
@@ -131,7 +131,16 @@ html,body{height:100%;margin:0;overflow:hidden;background:#8fd0ee;font-family:va
 .kicks i{display:block;width:20px;height:20px;opacity:.3;transition:opacity .2s}
 .kicks i svg{display:block;width:100%;height:100%}
 .kicks i.on{opacity:1}
-.kicks em{font:900 13px/1 var(--body);font-style:normal;color:#fff}
+.kicks em{display:flex;align-items:center;gap:3px;font:900 14px/1 var(--body);font-style:normal;color:#fff}
+.kicks em svg{width:14px;height:14px;display:block}
 #score b small{font-size:.55em;opacity:.8}
+/* turn mode: window icons instead of numbers (vs.js winIcons) */
+#score.wins b{display:flex;gap:3px;padding:6px 8px;min-width:0;background:#fff;box-shadow:0 0 0 2px var(--ink),0 3px 0 2px var(--ink);-webkit-text-stroke:0}
+#score.wins .you{color:var(--you)}#score.wins .bot{color:var(--bot)}
+#score.wins svg{width:22px;height:22px;display:block}
+#score.wins svg.br{opacity:.35}
+#score.wins svg.bump{animation:bump .35s cubic-bezier(.2,1.8,.4,1)}
+@media (max-width:380px){#score.wins svg{width:18px;height:18px}}
+@media (prefers-reduced-motion:reduce){#score.wins svg.bump{animation:none}}
 @media (prefers-reduced-motion:reduce){.tlabel.pop{animation:none}.tlabel.blink{animation:pulse 1.6s ease-in-out infinite}}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.55}}

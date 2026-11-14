@@ -35,11 +35,13 @@ const balls=[],shards=[],debris=[];
 let timers=[];
 const later=(s,f)=>timers.push({t:s,f});
 
-/* Intact glass reads as solid: a sky-blue reflection fading down the pane, with bold diagonal glints. */
-const glassTex=canvasTex(256,256,(g,w,h)=>{const a=g.createLinearGradient(0,0,0,h);a.addColorStop(0,'rgba(96,180,240,.8)');a.addColorStop(1,'rgba(176,226,252,.56)');g.fillStyle=a;g.fillRect(0,0,w,h);g.fillStyle='rgba(255,255,255,.78)';g.save();g.translate(w*.5,h*.5);g.rotate(-.75);g.fillRect(-w,-74,w*2,44);g.fillRect(-w,-14,w*2,14);g.restore()});
+/* Intact glass: an even light-blue tint with one thin, soft diagonal highlight (kept plain on purpose, 2026-11-14). */
+function glassPaint(top,bot,hi){return canvasTex(256,256,(g,w,h)=>{const a=g.createLinearGradient(0,0,0,h);a.addColorStop(0,top);a.addColorStop(1,bot);g.fillStyle=a;g.fillRect(0,0,w,h);
+  g.save();g.translate(w*.5,h*.5);g.rotate(-.75);const b=g.createLinearGradient(0,-60,0,-36);b.addColorStop(0,'rgba(255,255,255,0)');b.addColorStop(.5,hi);b.addColorStop(1,'rgba(255,255,255,0)');g.fillStyle=b;g.fillRect(-w,-60,w*2,24);g.restore()})}
+const glassTex=glassPaint('rgba(120,192,238,.72)','rgba(150,208,242,.62)','rgba(255,255,255,.55)');
 const glassMat=new T.MeshBasicMaterial({map:glassTex,transparent:true,depthWrite:false,side:T.DoubleSide});
 /* Prize window: the same glass in gold. */
-const goldTex=canvasTex(256,256,(g,w,h)=>{const a=g.createLinearGradient(0,0,0,h);a.addColorStop(0,'rgba(255,190,40,.9)');a.addColorStop(1,'rgba(255,226,120,.72)');g.fillStyle=a;g.fillRect(0,0,w,h);g.fillStyle='rgba(255,255,235,.85)';g.save();g.translate(w*.5,h*.5);g.rotate(-.75);g.fillRect(-w,-74,w*2,44);g.fillRect(-w,-14,w*2,14);g.restore()});
+const goldTex=glassPaint('rgba(255,196,50,.88)','rgba(255,214,90,.8)','rgba(255,255,235,.6)');
 /* turn mode: a dim room behind each window, shown once it's broken (instead of the yard behind the wall) */
 const roomTex=canvasTex(64,128,(g,w,h)=>{const a=g.createLinearGradient(0,0,0,h);a.addColorStop(0,'#3b4256');a.addColorStop(1,'#151925');g.fillStyle=a;g.fillRect(0,0,w,h)});
 let roomMat=null;
@@ -58,11 +60,20 @@ function clearLevel(){
   botClear();netClear();
   spark.clear();dust.clear();timers=[];$('win').hidden=true;$('intro').hidden=true;$('again').hidden=true;$('rematch').hidden=true;$('wipe').classList.remove('on');
   retrying=false;confetti.length=0;fctx.clearRect(0,0,W_,H_);
-  obs=[];movers=[];lt=0;wind=0;wheel=null;hinges=[];clock=null;VS.on=false;
+  obs=[];movers=[];MILLS=[];lt=0;wind=0;wheel=null;hinges=[];clock=null;VS.on=false;
 }
 function makeFrame(p,parent,c){const f=.2*Math.sqrt(ak()),z=.1; /* bigger windows, slightly sturdier frames */
   p.frame=[box(p.w+f*2,f,.34,c,p.x,p.y+p.h/2+f/2,z,parent),box(p.w+f*2,f,.34,c,p.x,p.y-p.h/2-f/2,z,parent),
-    box(f,p.h,.34,c,p.x-p.w/2-f/2,p.y,z,parent),box(f,p.h,.34,c,p.x+p.w/2+f/2,p.y,z,parent)]}
+    box(f,p.h,.34,c,p.x-p.w/2-f/2,p.y,z,parent),box(f,p.h,.34,c,p.x+p.w/2+f/2,p.y,z,parent)];
+  /* thin dark outline on the frame's front face, along its outer and inner edges. Children of the top bar, so they hide
+     and show with the frame (round intro), and tintFrame (which swaps the bars' material) leaves them dark. */
+  const t=.045*Math.sqrt(ak()),top=p.frame[0];
+  [[p.w+f*2,p.h+f*2],[p.w+t*2,p.h+t*2]].forEach(([w,h])=>{const m=new T.Mesh(outlineGeo(w,h,t),FRAME_LINE);m.position.set(0,-(p.h/2+f/2),.171);top.add(m)})}
+const FRAME_LINE=new T.MeshBasicMaterial({color:0x1b2233});
+/* a w x h rectangle outline, t thick, drawn inward from its outer edge */
+function outlineGeo(w,h,t){const s=new T.Shape(),q=new T.Path(),a=w/2,b=h/2;
+  s.moveTo(-a,-b);s.lineTo(a,-b);s.lineTo(a,b);s.lineTo(-a,b);s.closePath();
+  q.moveTo(-a+t,-b+t);q.lineTo(-a+t,b-t);q.lineTo(a-t,b-t);q.lineTo(a-t,-b+t);q.closePath();s.holes.push(q);return new T.ShapeGeometry(s)}
 function tintFrame(p,c){(p.frame||[]).forEach(m=>m.material=mat(c))}
 function makePane(p,parent){const m=new T.Mesh(new T.PlaneGeometry(p.w,p.h),glassMat);m.position.set(p.x,p.y,0);m.renderOrder=3;parent.add(m);p.mesh=m;p.broken=false;addGlare(p)}
 

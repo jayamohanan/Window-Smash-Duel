@@ -11,6 +11,7 @@ const hemi=new T.HemisphereLight(0xffffff,0x93b56a,.72);scene.add(hemi);
 const sun=new T.DirectionalLight(0xfff1d6,.72); sun.position.set(-11,20,17); sun.castShadow=true;
 sun.shadow.mapSize.set(2048,2048);Object.assign(sun.shadow.camera,{left:-30,right:30,top:34,bottom:-26,near:1,far:110}); /* room for the bigger, farther arena (long kick) */ scene.add(sun);
 
+const TEAM_P=0x2a8a3e,TEAM_B=0xf08a24; /* you: dark green, opponent: orange (dark vs bright, readable for colour-blind players too) */ /* team colours (vs.js TEAM uses the same) */
 const mats={};
 const mat=c=>mats[c]||(mats[c]=new T.MeshLambertMaterial({color:c}));
 const bmats={};
@@ -31,12 +32,36 @@ const world=new T.Group(); scene.add(world);
   for(let i=0;i<n;i++){const s=i<n/2?-1:1,k=i<n/2?i:i-n/2;d.position.set(s*(8+k*.62),.75,-1.4);d.updateMatrix();pick.setMatrixAt(i,d.matrix)}pick.castShadow=true;world.add(pick);
   [-1,1].forEach(s=>[.5,1.1].forEach(y=>box(22,.12,.06,0xefe6d2,s*19,y,-1.48,world,false)));
 })();
+/* ---------- a small neutral crowd standing behind the fence on both sides of the building: flat cut-outs (one sheet of
+   16 people, each a plane facing the camera), heads and shoulders above the fence. Static scenery, no collisions. ---------- */
+(function crowd(){
+  const N=16,pk=a=>a[Math.floor(Math.random()*a.length)],
+    TOPS=['#d94b3d','#3f7fd0','#f2c230','#f4f4f4','#3a9b5c','#8a5bc4','#f08a3c','#2f3542','#e86f9a','#5bc0d6','#9aa3ad','#7a5232'],
+    LEGS=['#2f3a55','#3b3b3b','#5a4a3a','#6b7c99','#25303f'],SKINS=['#f1c9a5','#e0ac83','#c68a5e','#8d5a3b','#5e3a26'],HAIRS=['#2b1d14','#4a2f1d','#8a5a2b','#d9b25c','#1a1a1a','#b8b8b8'];
+  const tex=canvasTex(64*N,160,(g,w,h)=>{for(let i=0;i<N;i++){const cx=i*64+32,top=pk(TOPS),skin=pk(SKINS),hair=pk(HAIRS),leg=pk(LEGS);
+    g.fillStyle=leg;g.fillRect(cx-11,100,9,60);g.fillRect(cx+2,100,9,60); /* legs */
+    g.fillStyle=top;g.beginPath();g.moveTo(cx-15,104);g.lineTo(cx-16,46);g.quadraticCurveTo(cx-15,36,cx-6,35);g.lineTo(cx+6,35);g.quadraticCurveTo(cx+15,36,cx+16,46);g.lineTo(cx+15,104);g.closePath();g.fill(); /* body */
+    const up=i%4===1; /* now and then an arm up */
+    g.fillRect(cx-21,up?6:42,6,up?40:44);g.fillRect(cx+15,42,6,44);
+    g.fillStyle=skin;g.beginPath();g.arc(cx-18,up?6:88,4,0,7);g.arc(cx+18,88,4,0,7);g.fill();
+    g.fillRect(cx-3,28,6,8);g.beginPath();g.ellipse(cx,20,9,11,0,0,7);g.fill(); /* neck, head */
+    g.fillStyle=hair;g.beginPath();g.ellipse(cx,15,9.5,7,0,Math.PI,0);g.fill();
+    if(i%5===2){g.fillStyle=pk(TOPS);g.beginPath();g.ellipse(cx,13,10.5,6,0,Math.PI,0);g.fill();g.fillRect(cx-1,11,13,3)} /* cap */
+    if(i%6===3){g.fillStyle=pk(TOPS);g.fillRect(cx-15,40,30,6)} /* scarf */
+  }});
+  const m=new T.MeshBasicMaterial({map:tex,alphaTest:.5,color:0xe6e6e6}); /* a touch darker than full white, so they sit in the scene */
+  const add=(x,z)=>{const hgt=rnd(1.6,1.82),q=new T.PlaneGeometry(hgt*.4,hgt),uv=q.attributes.uv,id=Math.floor(Math.random()*N);
+    for(let v=0;v<uv.count;v++)uv.setX(v,(id+uv.getX(v))/N);
+    const p=new T.Mesh(q,m);p.position.set(x,hgt/2,z);world.add(p)};
+  /* loose clumps along the fence, beyond the building's sides (the facade is at most ~12.6 m wide each way) */
+  [-1,1].forEach(s=>{let x=13.6;while(x<27){const c=1+Math.floor(Math.random()*3);for(let j=0;j<c;j++)add(s*(x+j*.62),rnd(-2.2,-3.4));x+=c*.62+rnd(.6,2.2)}});
+})();
 const clouds=[];
 for(let i=0;i<6;i++){const g=new T.Group();for(let k=0;k<4;k++){const m=new T.Mesh(new T.IcosahedronGeometry(rnd(2.5,5),1),bmat(0xffffff));m.position.set(k*4-6,rnd(-1,1),rnd(-1,1));m.scale.y=.62;g.add(m)}g.position.set(rnd(-90,90),rnd(26,44),-110);g.userData.s=rnd(.5,1.2);clouds.push(g);scene.add(g)}
 
-/* kick spots: the player's (blue ring) and the bot's (red ring) */
+/* kick spots: the player's (green ring) and the bot's (red ring) */
 function kickSpot(ring){const s=new T.Group(),a=new T.Mesh(new T.CircleGeometry(1.15,28),new T.MeshLambertMaterial({color:0xa98e5c}));a.rotation.x=-Math.PI/2;a.position.y=.02;a.receiveShadow=true;s.add(a);const r=new T.Mesh(new T.RingGeometry(.92,1.04,32),bmat(ring));r.rotation.x=-Math.PI/2;r.position.y=.03;s.add(r);scene.add(s);return s}
-const spot=kickSpot(0x3f8fe0),botSpot=kickSpot(0xe2513f);botSpot.visible=false;
+const spot=kickSpot(TEAM_P),botSpot=kickSpot(TEAM_B);botSpot.visible=false;
 
 /* ---------- camera layout ---------- */
 let gainX=.02,gainHigh=.02,gainLow=.01;const KNEE=3;
@@ -77,7 +102,7 @@ function layout(){
 const proj=new T.Vector3();
 function toScreen(x,y,z){proj.set(x,y,z).project(camera);return[(proj.x+1)/2*W_,(1-proj.y)/2*H_]}
 function updateHint(){
-  if(!LVL)return;const t=panes.find(p=>isOpen(p)&&(!p.side||p.side==='p')),show=!hintDone&&!sandbox&&!won&&!!LVL.tut&&!!t;$('hint').hidden=!show;if(!show)return;
+  if(!LVL)return;const t=panes.find(p=>isOpen(p)&&(!p.side||p.side==='p')),show=!hintDone&&!sandbox&&!won&&!VS.intro&&!!LVL.tut&&!!t; /* not during the turn-mode round intro (vs.js introDone shows it) */$('hint').hidden=!show;if(!show)return;
   const a=toScreen(PX,.3,D),b=toScreen(t.x,t.y,0),h=$('hint');
   h.style.setProperty('--x0',a[0]+'px');h.style.setProperty('--y0',(a[1]-16)+'px');h.style.setProperty('--x1',b[0]+'px');h.style.setProperty('--y1',b[1]+'px');
 }

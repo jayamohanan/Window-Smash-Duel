@@ -3,7 +3,7 @@
    Solid obstacles (oriented boxes the ball bounces off), movers (per-frame animation), roller shutters, wooden boards,
    wired glass, sliding board, wind, windmills, gap wheel, free-standing panes, carousel, spin boards / flip panels, gantry.
    All of it assumes the ball comes from the front (+z, the player's side). */
-let obs=[],movers=[],lt=0,wind=0;
+let obs=[],movers=[],lt=0,wind=0,MILLS=[]; /* MILLS: each windmill's turning maths, so the bot can see if its kick would hit a sail */
 const _lp=new T.Vector3(),_lq=new T.Vector3(),_ld=new T.Vector3(),_n=new T.Vector3(),_rv=new T.Vector3(),_wp=new T.Vector3();
 
 /* Bounce per material: e = restitution along the normal, f = friction kept along the surface. */
@@ -192,6 +192,7 @@ function buildMill(o){
     addOb(box(len-.6*s,.45*s,.07,sail,(len+.6*s)/2,.275*s,.02,arm),'wood')} /* sail 0.45 wide (× s), its inner edge along the arm */
   const dir=o.dir||(wind<0?1:-1); /* default: the tops of the sails move with the wind; no wind turns clockwise */
   movers.push(t=>{rot.rotation.z=dir*t*o.speed});
+  MILLS.push({x:o.x,y:o.y,z:o.z,len,n,s,dir,speed:o.speed});
 }
 
 /* ---------- gap wheel: one solid disc on the wall with a single quarter-circle cut-out, the only way to the windows behind it.

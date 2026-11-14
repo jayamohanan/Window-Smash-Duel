@@ -25,6 +25,7 @@ function crossPlane(b){
   if(b.live){b.live=false;b.a.set(0,-S.gravity,0)}
   const x=b.p.x,y=b.p.y;
   for(const p of panes){if(p.xf)continue;if(Math.abs(x-p.x)<=p.w/2+.06&&Math.abs(y-p.y)<=p.h/2+.06){
+    if(p.hid)reveal(p,true); /* hidden at round start (vs.js): a ball getting there shows it at once */
     if(p.shutF>0&&y>p.shutY-R*.3){wallHit(b,'clang');return}
     if(!p.broken){
       if(p.armor>0){breakBoards(p,b);wallHit(b,'soft');return}
@@ -57,7 +58,7 @@ function stepBall(b,dt){
   const sp=b.v.length();if(sp>.05)b.m.rotateOnWorldAxis(b.spin,sp/R*dt*.75);
   b.sh.position.x=b.p.x;b.sh.position.z=b.p.z;b.sh.material.opacity=clamp(1-b.p.y/9,.15,1);
   /* flight trail in the owner's colour */
-  if(b.state==='fly'&&Math.random()<.9)spark.emit(b.p.x,b.p.y,b.p.z,0,0,0,b.live?.42:.3,b.owner==='bot'?[1,.45,.35]:[.5,.75,1],0);
+  if(b.state==='fly'&&Math.random()<.9)spark.emit(b.p.x,b.p.y,b.p.z,0,0,0,b.live?.42:.3,b.owner==='bot'?[1,.68,.3]:[.45,.9,.5],0);
   const done=b.age>(b.state==='fly'?3:2.2)||b.p.z<-16;
   if(done){if(b.state==='fly')b.state='gone';removeBallMesh(b);return false}
   return true;

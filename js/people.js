@@ -1,8 +1,8 @@
 'use strict';
 /* ---------- people: a chunky footballer beside each human player's ball ----------
-   Blue for you; red for player 2 (pass-and-play) or the online friend. The robot (bot.js) stays for the computer opponent.
+   Green for you; orange for player 2 (pass-and-play) or the online friend. The robot (bot.js) stays for the computer opponent.
    Built from boxes like the robot, facing the wall (-z), so you mostly see their back (with a shirt number). Each stands
-   beside and a little behind its ball on the outer side (blue to the left of its ball, red to the right), so it never
+   beside and a little behind its ball on the outer side (green to the left of its ball, orange to the right), so it never
    hides the ball or the windows from the camera behind you. On every kick it steps in, swings the inside leg through and
    turns a little toward the shot. */
 const SKIN=0xf1c27d,HAIR=0x4a2f1c,BOOT=0x23304a,SHORTS=0xfff8e8;
@@ -30,7 +30,7 @@ const KIDS={p:buildKid(TEAM.p,-1),bot:buildKid(TEAM.bot,1)};
 /* Called by placeSpots (layout, level load): beside its spot, shown only for sides a person plays. */
 function placeKids(){
   const vs=!!(LVL&&LVL.vs)&&!sandbox;
-  KIDS.p.f.visible=vs;KIDS.bot.f.visible=vs&&OPP.mode!=='bot';
+  KIDS.p.f.visible=vs;KIDS.bot.f.visible=vs&&OPP.mode!=='bot'&&!VS.intro; /* hidden during the turn-mode round intro (vs.js) */
   KIDS.p.f.position.set(PX-.75,0,D+.35);KIDS.bot.f.position.set(BX+.75,0,BZ+.35);
 }
 /* a kick by side s with launch velocity v */

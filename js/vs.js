@@ -6,7 +6,7 @@
    fresh to the end. Now and then one extra window opens with gold glass (LVL.prize.pts points, tagged "+3") for a few seconds.
    Breaks are credited by the ball's owner ('p' or 'bot'); the frame takes the breaker's colour and keeps it while shut, and
    a "+1" rises over the scorer's kick spot. A draw at the bell goes to sudden death: the next point wins. */
-const TEAM={p:0x3f8fe0,bot:0xe2513f},FRAME=0xfffaf0,GOLD=0xffc53a;
+const TEAM={p:TEAM_P,bot:TEAM_B},FRAME=0xfffaf0,GOLD=0xffc53a;
 const VS={on:false,started:false,over:false,sudden:false,t:0,len:60,score:{p:0,bot:0},prize:null,prizeT:0,gap:0,recent:[],tickS:-1};
 /* open, intact and not shuttered: a live target */
 function isOpen(p){return !!p&&!p.broken&&!p.locked&&(p.shutF===undefined||p.shutF<.15)}
@@ -14,11 +14,11 @@ const prizeGap=()=>rnd(LVL.prize.every[0],LVL.prize.every[1]);
 
 function vsStart(L){
   Object.assign(VS,{on:true,started:false,over:false,sudden:false,t:0,len:S.round,score:{p:0,bot:0},prize:null,prizeT:L.prize?L.prize.first:1e9,gap:0,recent:[],tickS:-1,
-    tb:turnsPer()>0,each:Math.ceil(TB_KICKS/Math.max(1,turnsPer())),turn:null,left:0,ending:false,pT:0,bT:0,kicks:{p:0,bot:0}});
+    intro:false,tb:turnsPer()>0,each:Math.ceil(TB_KICKS/Math.max(1,turnsPer())),turn:null,left:0,ending:false,pT:0,bT:0,kicks:{p:0,bot:0}});
   panes.forEach(p=>{if(!p.vs)return;p.onShut=reglaze;p.hp0=p.hp;p.armor0=p.armor});
   drawScore();if(clock)clock.set(1,false,false);
-  if(OPP.mode==='bot')botReady();else botSpot.visible=true; /* a person plays red: no robot */
-  if(VS.tb)beginTurn(OPP.mode==='net'&&!NET.host?'bot':'p') /* turn mode: blue starts; online, whoever created the game */
+  if(OPP.mode==='bot')botReady();else botSpot.visible=true; /* a person plays orange: no robot */
+  if(VS.tb){VS.intro=true;hideLater();oppShow(false);beginTurn(OPP.mode==='net'&&!NET.host?'bot':'p')} /* turn mode: green starts; online, whoever created the game */
   const go=()=>{if(VS.tb)roundIntro();later(.8,()=>{if(!VS.on)return;VS.started=true;if(VS.tb)SHUF.played=true;if(!VS.tb)botStart()})}; /* the first shutters rolling up are the start signal */
   if(tapped)go();else startGo=go; /* very first round waits for the tap-to-play gate (ui.js) */
 }
@@ -44,8 +44,8 @@ function vsTick(dt){
     else if(!VS.tb){VS.prizeT-=dt;if(VS.prizeT<=0&&!openOne(true))VS.prizeT=1}} /* turn mode: no gold window */
 }
 /* ---------- Turn mode (⚙ panel: S.turns = 1 or 3 kicks per turn; 0 = the real-time race) ----------
-   Two goals on one flat-topped wall, a stone pilaster down the middle: the left half's windows are yours (blue frames),
-   the right half's the opponent's (red frames; the glass stays plain). A broken one shows a dim room behind it. A broken window scores 1 for the half's OWNER, whoever kicked the ball, and stays
+   Two goals on one flat-topped wall, a stone pilaster down the middle: the left half's windows are yours (green frames),
+   the right half's the opponent's (orange frames; the glass stays plain). A broken one shows a dim room behind it. A broken window scores 1 for the half's OWNER, whoever kicked the ball, and stays
    broken. Clear your whole half and you win at once. Otherwise each side gets TB_KICKS kicks (in turns of S.turns, you first);
    then the one with more of their half broken wins; level -> one-kick turns each until someone leads after a pair.
    A turn ends once that side has used its kicks and its last ball has landed (+0.6 s). No shutters, wired glass, gold or clock. */
@@ -68,25 +68,37 @@ function turnPanes(ps){
   ps.forEach(p=>{if(!p.vs)return;delete p.shutter;delete p.hp;p.pts=1;if(!p.side)p.side=p.x<0?'p':'bot';p.fc=FRAME_SIDE[p.side]});
 }
 const shuffled=()=>!!SHUF.pat&&SHUF.pat.some(b=>!b);
-/* Round start (turn mode): your windows light up in your colour (three pulses: a tint on the glass and a glowing outline
-   around the frame) while a banner says what to do. Every round, since the windows are shuffled between rounds.
-   Pass-and-play lights both sides, each in its own colour. */
+/* Round start (turn mode), in stages: first only your windows and you are there (the other side's windows are plain wall:
+   a stone patch over the hole, frame hidden; the opponent, their spot and ball are hidden) while a banner says what to do;
+   then the opponent appears and their windows fade in one by one. Input is off (VS.intro) until both sides are in, then
+   the turn label pops ("YOUR TURN"). The staging itself is the highlight: no glow or pulses. Every round, since the
+   windows are shuffled between rounds. Windows are visual only: a ball reaching a hidden one reveals it at once (online sync). */
+const REVEAL_AT=1.4;
+/* the opponent's figure, kick spot and waiting ball */
+function oppShow(v){
+  botSpot.visible=v;if(OPP.mode==='bot'){BOT.fig.visible=v;if(BOT.ball){BOT.ball.m.visible=v;BOT.ball.sh.visible=v}}else KIDS.bot.f.visible=v&&!!(LVL&&LVL.vs)&&!sandbox;
+}
+function introDone(){if(!VS.intro)return;VS.intro=false;oppShow(true);panes.forEach(p=>{if(p.hid)reveal(p)});turnLabel(true);updateHint()}
+function hideLater(){
+  panes.forEach(p=>{if(!p.vs||p.side!=='bot'||!p.mesh)return;
+    const g=new T.PlaneGeometry(p.w+.02,p.h+.02),uv=g.attributes.uv,pos=g.attributes.position;
+    for(let i=0;i<uv.count;i++)uv.setXY(i,pos.getX(i)+p.x,pos.getY(i)+p.y); /* world-space UVs, like the wall, so the stone lines up */
+    const m=new T.Mesh(g,new T.MeshLambertMaterial({map:stoneTex,transparent:true,opacity:1,depthWrite:false}));
+    m.position.set(p.x,p.y,ZF+.004);m.renderOrder=6;m.receiveShadow=true;group.add(m);
+    p.hid=m;(p.frame||[]).forEach(f=>f.visible=false)});
+}
+/* show a hidden window: frame back, stone patch fades out */
+function reveal(p,now){
+  const m=p.hid;if(!m)return;p.hid=null;(p.frame||[]).forEach(f=>f.visible=true);
+  if(now){m.visible=false;return}
+  const t0=lt;movers.push(t=>{const u=(t-t0)/.45;if(u>=1){m.visible=false;return}m.material.opacity=1-u*u})}
 function roundIntro(){
-  const sides=OPP.mode==='local'?['p','bot']:['p'],k=ak(),hl=[];
-  panes.forEach(p=>{if(!p.vs||!sides.includes(p.side)||!p.mesh)return;const c=TEAM[p.side];
-    const fill=new T.Mesh(p.mesh.geometry,new T.MeshBasicMaterial({color:c,transparent:true,opacity:0,depthWrite:false,side:T.DoubleSide}));
-    fill.position.z=.004;fill.renderOrder=5;p.mesh.add(fill); /* rides with the glass: gone if it breaks */
-    const o=.45*k,i=.22*k,sh=new T.Shape(),hole=new T.Path(),W=p.w/2,H=p.h/2;
-    sh.moveTo(-W-o,-H-o);sh.lineTo(W+o,-H-o);sh.lineTo(W+o,H+o);sh.lineTo(-W-o,H+o);sh.closePath();
-    hole.moveTo(-W-i,-H-i);hole.lineTo(-W-i,H+i);hole.lineTo(W+i,H+i);hole.lineTo(W+i,-H-i);hole.closePath();sh.holes.push(hole);
-    const ring=new T.Mesh(new T.ShapeGeometry(sh),new T.MeshBasicMaterial({color:c,transparent:true,opacity:0,depthWrite:false}));
-    ring.position.set(p.x,p.y,.3);ring.renderOrder=5;group.add(ring);hl.push(fill,ring)});
-  const t0=lt,dur=2.4;
-  movers.push(t=>{const u=t-t0;if(u>dur+.3){hl.forEach(m=>m.visible=false);return}
-    const a=u<dur?Math.pow(Math.sin(Math.PI*u/.8),2):0;hl.forEach((m,j)=>m.material.opacity=a*(j%2?.95:.55))});
+  const late=panes.filter(p=>p.hid).sort((a,b)=>b.y-a.y||a.x-b.x);
+  later(REVEAL_AT,()=>{if(!VS.on||VS.over)return;oppShow(true);late.forEach((p,i)=>later(i*.12,()=>{if(VS.on)reveal(p)}));
+    later(late.length*.12+.45,()=>{if(VS.on)introDone()})});
   const b=$('intro'),loc=OPP.mode==='local';
-  b.innerHTML=loc?'SMASH ALL YOUR WINDOWS FAST TO WIN!<small><span class="you">PLAYER 1: BLUE</span> · <span class="bot">PLAYER 2: RED</span></small>'
-    :'SMASH ALL <span class="you">BLUE</span> WINDOWS FAST TO WIN!';
+  b.innerHTML=loc?'SMASH ALL YOUR WINDOWS FAST TO WIN!<small><span class="you">PLAYER 1: GREEN</span> · <span class="bot">PLAYER 2: ORANGE</span></small>'
+    :'SMASH ALL <span class="you">GREEN</span> WINDOWS FAST TO WIN!';
   b.hidden=false;b.classList.remove('go');void b.offsetWidth;b.classList.add('go');
   clearTimeout(roundIntro.t);roundIntro.t=setTimeout(()=>b.hidden=true,3200);
 }
@@ -120,7 +132,7 @@ function endTurn(){
      opponent's to the right of theirs (below the spot when there's no room); dimmed while it isn't their turn. */
 const BALL_ICON='<svg viewBox="-24 -24 48 48" aria-hidden="true"><use href="#ballIcon"/></svg>';
 function turnLabel(fresh){
-  const show=VS.on&&VS.tb&&!VS.over&&!sandbox;$('tags').hidden=!show;if(!show)return;
+  const show=VS.on&&VS.tb&&!VS.over&&!VS.intro&&!sandbox;$('tags').hidden=!show;if(!show)return;
   ['p','bot'].forEach(s=>{
     const on=VS.turn===s,L=$(s==='p'?'tlP':'tlB'),K=$(s==='p'?'kkP':'kkB');
     L.hidden=!on;
@@ -128,7 +140,7 @@ function turnLabel(fresh){
       if(fresh){L.classList.remove('pop');void L.offsetWidth;L.classList.add('pop')}}
     const n=on?VS.turnN||1:VS.sudden?1:Math.max(1,Math.min(turnsPer(),TB_KICKS-VS.kicks[s])),left=on?VS.left:n;
     K.classList.toggle('idle',!on);
-    K.innerHTML='<span aria-label="'+left+' kicks this turn">'+Array.from({length:n},(_,i)=>'<i'+(i<left?' class="on"':'')+'>'+BALL_ICON+'</i>').join('')+'</span>'+(VS.sudden?'':'<em>'+Math.max(0,TB_KICKS-VS.kicks[s])+' left</em>');
+    K.innerHTML='<span aria-label="'+left+' kicks this turn">'+Array.from({length:n},(_,i)=>'<i'+(i<left?' class="on"':'')+'>'+BALL_ICON+'</i>').join('')+'</span>'+(VS.sudden?'':(t=>'<em aria-label="'+t+' kicks left">'+BALL_ICON+t+'</em>')(Math.max(0,TB_KICKS-VS.kicks[s])));
   });
   placeTags();
 }
@@ -136,7 +148,8 @@ function placeTags(){
   if($('tags').hidden)return;
   [['p',PX,'tlP','kkP',-1],['bot',BX,'tlB','kkB',1]].forEach(([s,x,l,k,dir])=>{
     const L=$(l);
-    if(!L.hidden){const a=toScreen(x,s==='bot'&&OPP.mode==='bot'?3.1:2*R+.32,D),hw=L.offsetWidth/2;L.style.left=clamp(a[0],hw+8,W_-hw-8)+'px';L.style.top=Math.max(a[1],96)+'px'}
+    /* the label sits just above the player's head (the footballer beside the ball; the robot's head is higher) */
+    if(!L.hidden){const kf=KIDS[s].f.position,a=s==='bot'&&OPP.mode==='bot'?toScreen(x,3.1,D):toScreen(kf.x,2.02,kf.z),hw=L.offsetWidth/2;L.style.left=clamp(a[0],hw+8,W_-hw-8)+'px';L.style.top=Math.max(a[1],96)+'px'}
     const K=$(k),w=K.offsetWidth,h=K.offsetHeight,b=toScreen(x+dir*1.5,R,D),c=toScreen(x,0,D);
     let left=dir<0?b[0]-w:b[0],top=b[1]-h/2;
     /* no room at the side: just below the spot, if the spot is on screen (else it stays at the screen edge on its side) */
@@ -146,7 +159,7 @@ function placeTags(){
 }
 /* the player whose turn it is pressed on their ball: stop the blinking */
 function turnGrab(){if(VS.blink){VS.blink=false;turnLabel(false)}}
-/* turn pill / round-over names: pass-and-play has two players on one screen; online the red side is your friend */
+/* turn pill / round-over names: pass-and-play has two players on one screen; online the orange side is your friend */
 function sideName(s){if(OPP.mode==='local')return s==='p'?'PLAYER 1':'PLAYER 2';return s==='p'?'YOUR TURN':OPP.mode==='net'&&!OPP.quick?"FRIEND'S TURN":"OPPONENT'S TURN"}
 /* Open one shut, re-glazed window: not one that just closed, and preferably away from the open ones. */
 function openOne(gold){
@@ -194,12 +207,21 @@ function endRound(){
     if(pw||loc){burstConfetti();sfx.win()}else sfx.lost();
     later(.9,()=>{$('again').hidden=false;if(OPP.mode==='net'&&OPP.quick)rematchUi(NET.peer?(NET.rmThem?'ask':'idle'):'left')})});
 }
-/* The two small scores at the top (blue = you, red = the bot); the scorer's number bumps. Hidden outside VS. */
+/* The two small scores at the top (green = you, orange = the opponent); the scorer's number bumps. Hidden outside VS. */
 function drawScore(who){
   const on=VS.on&&!sandbox;$('score').hidden=!on;if(!on){$('tags').hidden=true;return}
-  if(VS.tb){$('scP').innerHTML=VS.score.p+'<small>/'+halfCount('p')+'</small>';$('scB').innerHTML=VS.score.bot+'<small>/'+halfCount('bot')+'</small>'}
-  else{$('scP').textContent=VS.score.p;$('scB').textContent=VS.score.bot}
+  $('score').classList.toggle('wins',!!VS.tb);
+  if(VS.tb){winIcons('p',who==='p');winIcons('bot',who==='bot');return}
+  $('scP').textContent=VS.score.p;$('scB').textContent=VS.score.bot;
   if(who){const e=$(who==='p'?'scP':'scB');e.classList.remove('bump');void e.offsetWidth;e.classList.add('bump')}
+}
+/* Turn mode score: one window icon per window of that side, no numbers. Broken ones become a dimmed broken-window icon,
+   filling in from the outer end (green from the left, orange from the right), so the full, bright icons stay near the middle. */
+function winIcons(s,bump){
+  const n=halfCount(s),k=Math.min(n,VS.score[s]),e=$(s==='p'?'scP':'scB');
+  e.setAttribute('aria-label',k+' of '+n+' windows smashed');
+  e.innerHTML=Array.from({length:n},(_,i)=>{const j=s==='p'?i:n-1-i,br=j<k; /* j: position counted from the outer end */
+    return '<svg viewBox="-12 -12 24 24" class="'+(br?'br':'')+(br&&bump&&j===k-1?' bump':'')+'" aria-hidden="true"><use href="#'+(br?'winBroken':'winIcon')+'"/></svg>'}).join('');
 }
 /* "+1" (or "+3" for gold) rising and fading over the scorer's kick spot, in their colour. */
 function gainPop(who,pts){

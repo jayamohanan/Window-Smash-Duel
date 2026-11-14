@@ -6,7 +6,7 @@ function chips(){
   document.querySelectorAll('[data-bot]').forEach(b=>{const p=BOT_PRESETS[b.dataset.bot];b.classList.toggle('on',Object.keys(p).every(k=>S[k]===p[k]))});
   document.querySelectorAll('[data-turns]').forEach(b=>b.classList.toggle('on',+b.dataset.turns===S.turns));
   $('sandbox').classList.toggle('on',sandbox);
-  $('glSky').classList.toggle('on',S.glSky);$('glGlint').classList.toggle('on',S.glints);
+  $('glSky').classList.toggle('on',S.glSkyOn);$('glGlint').classList.toggle('on',S.glints);
   const sb=$('soundBtn');sb.classList.toggle('muted',!S.sound);sb.setAttribute('aria-label',S.sound?'Sound on':'Sound off');
 }
 $('lvlRow').innerHTML=LV.map((L,i)=>'<button class="chip" data-lvl="'+i+'" title="'+L.name+'">'+(i+1)+'</button>').join('');
@@ -23,7 +23,7 @@ document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>{S.mode=b.data
 document.querySelectorAll('[data-lvl]').forEach(b=>b.onclick=()=>{if(offline())loadLevel(+b.dataset.lvl)});
 document.querySelectorAll('[data-bot]').forEach(b=>b.onclick=()=>{Object.assign(S,BOT_PRESETS[b.dataset.bot]);save();buildSliders();chips()});
 document.querySelectorAll('[data-turns]').forEach(b=>b.onclick=()=>{S.turns=+b.dataset.turns;save();chips();if(offline())reloadLevel()});
-$('glSky').onclick=()=>{S.glSky=!S.glSky;save();chips()};
+$('glSky').onclick=()=>{S.glSkyOn=!S.glSkyOn;save();chips()};
 $('glGlint').onclick=()=>{S.glints=!S.glints;save();chips()};
 $('sandbox').onclick=()=>{if(offline())loadSandbox()};
 $('soundBtn').onclick=()=>{initAudio();S.sound=!S.sound;save();chips()};
