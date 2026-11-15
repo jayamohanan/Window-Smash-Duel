@@ -53,7 +53,8 @@ const sideW=(b,t)=>b.kickT===undefined?1:clamp((t-b.kickT-S.steerWait)/120,0,1);
 function applySteer(b,dx,dy){
   if(b.p.y<=R+.02)return;
   const tr=clamp((b.p.z-ZF)/Math.max(.1,-b.v.z),.2,1.2);
-  b.v.x=clamp(b.v.x+dx*gainX*S.side/tr,-30,30);
+  if(b.line)b.ox=clamp(b.ox+dx*gainX*S.side,-12*ak(),12*ak()); /* a sideways shift of the landing point, off the swipe line (flyLive) */
+  else b.v.x=clamp(b.v.x+dx*gainX*S.side/tr,-30,30);
   const dv=clamp(-dy*gainHigh*S.lift/tr,-b.P-b.lift,b.P*.25-b.lift);b.lift+=dv;b.vn+=dv;
 }
 function liveMove(e){
@@ -100,12 +101,26 @@ function kickLive(bp,pt,d,pk){
   {let a=Math.atan2(dx,-dy);const c=Math.atan2(pt.x-bp.x,-(pt.y-bp.y));a=lerp(a,c,S.chord);
    const z=S.straight*Math.PI/180,m=Math.abs(a);if(z>0)a=Math.sign(a)*(m<z?0:m<2*z?(m-z)*2:m);
    const l=Math.hypot(dx,dy)||1;dx=Math.sin(a)*l;dy=-Math.cos(a)*l}
-  const rowY=toScreen(0,2.8*ak(),ZF)[1],k=(bp.y-rowY)/Math.max(1,-dy);
-  let xw=0;ndc.set((bp.x+dx*k)/W_*2-1,1-rowY/H_*2);ray.setFromCamera(ndc,camera);if(ray.ray.intersectPlane(plane,hitV))xw=clamp(hitV.x,-16*ak(),16*ak());
   const q=Math.sqrt(ak()),tF=13*q/P; /* tF: time to reach the wall */
   b.kickT=pt.t||performance.now();b.P=P*q;b.lift=0;b.plus=false;b.vn=P*S.loft*q;b.baseY=bp.y;b.topY=Math.min(d.top,pt.y+Math.min(0,sv.y)*.08);
-  b.v.set((xw-b.p.x)/tF,b.vn,-D/tF);b.a.set(0,-S.gravity,0); /* sideways from the ball's own spot to the aimed wall point */
+  /* Sideways aim follows the swipe's line on screen: the ball arrives where that line crosses the height it reaches the
+     wall at (swipe at the top-right window and it gets there; the same angle with a lower kick hits the lower window on
+     that line). Set here from the predicted arrival height, then kept up to date every frame in flyLive. */
+  const l=Math.hypot(dx,dy)||1;b.line={x0:bp.x,y0:bp.y,dx:dx/l,dy:dy/l};b.ox=0;b.tx=b.p.x;b.v.set(0,b.vn,-D/tF);
+  b.tx=lineX(b,(b.p.z-ZF)/(D/tF));
+  b.v.x=(b.tx-b.p.x)/tF;b.a.set(0,-S.gravity,0);
   balls.push(b);d.steer=b;kickFx(b);
+}
+/* World x on the wall where the ball's swipe line (b.line, screen space) crosses the height the ball is predicted to
+   reach the wall at, tr seconds from now: plain gravity on vn, or, if that would rise past the finger's ceiling, an arc
+   that peaks at the ceiling and falls from there (what flyLive does). */
+function lineX(b,tr){
+  const g=S.gravity,yM=ceilingY(b);let ya=b.p.y+b.vn*tr-.5*g*tr*tr;
+  if(yM!==null&&b.vn>0&&b.p.y+b.vn*b.vn/(2*g)>yM){const tp=Math.sqrt(2*Math.max(0,yM-b.p.y)/g);ya=yM-.5*g*(tr-tp)*(tr-tp)}
+  ya=clamp(ya,R,14*ak());
+  const L=b.line,ry=toScreen(b.tx,ya,ZF)[1],sx=L.x0+L.dx*Math.max(0,L.y0-ry)/Math.max(.05,-L.dy);
+  ndc.set(sx/W_*2-1,1-ry/H_*2);ray.setFromCamera(ndc,camera);
+  return ray.ray.intersectPlane(plane,hitV)?clamp(hitV.x,-16*ak(),16*ak()):b.tx;
 }
 function kickFx(b){
   if(b.owner==='p')vsGo();turnKick(b.owner);netKick(b);kidKick(b.owner,b.v);
@@ -156,7 +171,10 @@ function flyLive(b,dt){
       const py=b.p.y+b.vn*tr-.5*g*tr*tr,px=b.p.x+v.x*tr;if(py<R+.2)return;
       const tx=p.x+p.vx*tr,ty=p.y,q=Math.hypot(px-tx,py-ty);
       if(q<Math.hypot(p.w,p.h)/2+1.3&&q<bd){bd=q;best=p;bt=tr;bx=tx-px;by=ty-py}});
-    if(best){const k=1-Math.exp(-S.snap*7*dt),t=Math.max(bt,.1);if(!wind)v.x+=bx*k/t;b.vn+=by*k/t}}
+    if(best){const k=1-Math.exp(-S.snap*7*dt),t=Math.max(bt,.1);if(!wind){if(b.line)b.ox+=bx*k;else v.x+=bx*k/t}b.vn+=by*k/t}}
+  /* follow the swipe line (see lineX): head for where it meets the predicted arrival height, plus the steering / aim-help
+     offset b.ox. Not with wind (it pushes v.x itself), and not in the last few hundredths of a second. */
+  if(b.line&&!wind&&v.z<-.5){const tr=(b.p.z-ZF)/-v.z;if(tr>.04){b.tx=lineX(b,tr);v.x=clamp((b.tx+b.ox-b.p.x)/tr,-30,30)}}
   const yMax=ceilingY(b),gap=yMax===null?1e9:yMax-b.p.y;
   v.y=Math.min(b.vn,gap>0?Math.sqrt(2*g*gap):0);
   /* At the ceiling, drop the leftover climb so the ball peaks there and falls at once (no flat hover).
