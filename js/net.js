@@ -183,7 +183,7 @@ function remoteKick(m){
   b.v.set(-m.v[0],m.v[1],m.v[2]);b.snaps=[{t:m.st,p:new T.Vector3(-m.p[0],m.p[1],m.p[2]),v:b.v.clone()}]; /* reports stay in their (mirrored) coordinates; puppetStep remaps */
   introDone(); /* their kick came in before our intro finished: bring them in now */
   NET.in[m.id]=b;balls.push(b);turnKick('bot');kidKick('bot',b.v);
-  sfx.kick(.8);for(let i=0;i<10;i++)dust.emit(BX+rnd(-.3,.3),.1,D+rnd(-.2,.2),rnd(-1.8,1.8),rnd(.6,2.2),rnd(-.5,1.5),rnd(.25,.5),[.72,.6,.42],3);
+  /* no kick sound for the opponent */for(let i=0;i<10;i++)dust.emit(BX+rnd(-.3,.3),.1,D+rnd(-.2,.2),rnd(-1.8,1.8),rnd(.6,2.2),rnd(-.5,1.5),rnd(.25,.5),[.72,.6,.42],3);
 }
 /* their window i (their view) is our mirror-image window */
 function remoteHit(m,b){

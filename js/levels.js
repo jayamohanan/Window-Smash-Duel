@@ -30,7 +30,7 @@ const LV=[
   panes:grid([-5.1,-1.7,1.7,5.1],[1.8,4.5,7.2],2.4,1.8,{4:{hp:2},7:{hp:2}})}
 ];
 
-let level=0,LVL=null,group=null,panes=[],won=false,cur=null,D=13,hintDone=false;
+let level=0,LVL=null,group=null,panes=[],won=false,cur=null,D=13,hintDone=false,hintT=null;
 const balls=[],shards=[],debris=[];
 let timers=[];
 const later=(s,f)=>timers.push({t:s,f});
@@ -111,8 +111,9 @@ function facadeAt(x,y){const W=LVL.W,H=LVL.H;if(Math.abs(x)>W+.25||y<0)return fa
 /* ---------- round clock on the facade: the gold wedge is the time left, it turns red for the last 10 s and pulses in sudden death;
    the seconds left sit in the middle (num), white-outlined so they read on gold, red and cream. No needle, so nothing crosses them. ---------- */
 let clock=null;
-function buildClock(x,y,r){
-  const g=group,z=ZF+.01;
+function buildClock(cx0,cy0,r){
+  const g=new T.Group(),z=ZF+.01,x=0,y=0;g.position.set(cx0,cy0,0);group.add(g); /* own group: it pops bigger on each of the last 5 seconds */
+  let popAt=-1;
   const disc=(rad,c,dz)=>{const m=new T.Mesh(new T.CircleGeometry(rad,48),bmat(c));m.position.set(x,y,z+dz);g.add(m);return m};
   disc(r+.14,0x23304a,0);const face=disc(r,0xfff8e8,.005);
   const wm=new T.MeshBasicMaterial({color:GOLD,side:T.DoubleSide}),wedge=new T.Mesh(new T.BufferGeometry(),wm);wedge.position.set(x,y,z+.01);g.add(wedge);
@@ -125,7 +126,9 @@ function buildClock(x,y,r){
     cx.lineWidth=26;cx.strokeStyle='#fff8e8';cx.strokeText(n,128,138);cx.fillStyle=w?'#c8281e':'#23304a';cx.fillText(n,128,138);tex.needsUpdate=true};
   if(document.fonts&&!document.fonts.check(TAG_FONT))document.fonts.load(TAG_FONT).then(()=>{if(lastN!==null)drawN(lastN,lastW)},()=>{}); /* iOS: redraw once the font is in */
   let lastK=-1;
-  return{set(k,warn,sudden){
+  return{pop(){popAt=performance.now()},
+    set(k,warn,sudden){
+    if(popAt>=0){const u=(performance.now()-popAt)/450;g.scale.setScalar(u<1?1+.22*Math.exp(-u*4)*Math.cos(u*7):1);if(u>=1)popAt=-1}
     if(Math.abs(k-lastK)>.003||(k===0&&lastK!==0)){lastK=k;wedge.geometry.dispose();wedge.geometry=k>0?new T.CircleGeometry(r*.97,Math.max(3,Math.ceil(64*k)),Math.PI/2,k*Math.PI*2):new T.BufferGeometry()}
     wm.color.setHex(warn?TEAM.bot:GOLD);
     face.material=bmat(sudden&&Math.sin(lt*10)>0?0xffb3a6:0xfff8e8)},
@@ -149,7 +152,7 @@ function loadLevel(i){
   panes=(LVL.layout?LVL.layout():LVL.panes).map(p=>Object.assign({},p));if(tbOn())turnPanes(panes);placeSpots();lt=0;wind=LVL.wind||0;
   if(LVL.type==='facade')buildFacade(LVL);else if(LVL.type==='stand')buildStand(LVL);
   buildMech(LVL);
-  won=false;
+  won=false;hintDone=false;hintT=null;
   if(LVL.vs)vsStart(LVL);else drawScore();spawnBall(); /* after vsStart: the first ball goes to whoever kicks first */
   updateHint();chips();
 }

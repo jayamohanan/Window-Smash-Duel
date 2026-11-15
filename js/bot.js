@@ -45,7 +45,7 @@ function placeBot(){
 }
 /* ---------- progress on this device: drives the difficulty ramp and the one-time warm-up (vs.js) ---------- */
 const PROG_KEY='windowSmashDuel.prog';
-let PROG={played:0,str:0,warm:false,mills:false,v:0}; /* str: opponent strength 0..1; warm: practice done; mills: windmill banner shown */
+let PROG={played:0,str:0,warm:false,mills:false,tut:false,v:0}; /* str: opponent strength 0..1; warm: practice done; mills: windmill banner shown; tut: you have smashed a window (no swipe hand) */
 try{Object.assign(PROG,JSON.parse(localStorage.getItem(PROG_KEY)||'{}'))}catch(e){}
 const progSave=()=>{try{localStorage.setItem(PROG_KEY,JSON.stringify(PROG))}catch(e){}};
 /* v3 (2026-11-14): tiers became one strength dial; carry the old tier over (at most normal) */
@@ -141,7 +141,7 @@ function botKick(v0){
   BOT.ball=null;BOT.ballT=.45;
   botAimed(p);
   b.state='fly';b.live=false;b.age=0;b.born=1;b.m.scale.setScalar(1);b.p.y=R;b.v.copy(v0);b.a.set(0,-S.gravity,0);b.spin.set(0,1,0).cross(b.v).normalize();balls.push(b);
-  sfx.kick(.8);for(let i=0;i<10;i++)dust.emit(b.p.x+rnd(-.3,.3),.1,b.p.z+rnd(-.2,.2),rnd(-1.8,1.8),rnd(.6,2.2),rnd(-.5,1.5),rnd(.25,.5),[.72,.6,.42],3);
+  /* no kick sound for the opponent */for(let i=0;i<10;i++)dust.emit(b.p.x+rnd(-.3,.3),.1,b.p.z+rnd(-.2,.2),rnd(-1.8,1.8),rnd(.6,2.2),rnd(-.5,1.5),rnd(.25,.5),[.72,.6,.42],3);
   BOT.st='follow';BOT.t=.35;BOT.kickT=0;turnKick('bot');
 }
 function botTick(dt){

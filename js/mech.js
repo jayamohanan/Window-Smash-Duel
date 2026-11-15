@@ -23,16 +23,37 @@ function hitObs(b){
   if(b.ghost||b.rebound)return; /* a rebounding ball is on a set path to its glass */
   for(const o of obs){
     if(o.skip&&o.skip(b))continue;
+    if(o.mill&&b.glanceT>lt)continue; /* just glanced: let it clear the windmill */
     _lp.copy(b.p).applyMatrix4(o.inv);const h=o.h;
     let nx=_lp.x-clamp(_lp.x,-h.x,h.x),ny=_lp.y-clamp(_lp.y,-h.y,h.y),nz=_lp.z-clamp(_lp.z,-h.z,h.z),d=Math.hypot(nx,ny,nz);
     if(d>=R)continue;
     if(d<1e-4){const px=h.x-Math.abs(_lp.x),py=h.y-Math.abs(_lp.y),pz=h.z-Math.abs(_lp.z);
       if(px<py&&px<pz){_n.set(Math.sign(_lp.x)||1,0,0);d=-px}else if(py<pz){_n.set(0,Math.sign(_lp.y)||1,0);d=-py}else{_n.set(0,0,Math.sign(_lp.z)||1);d=-pz}}
     else _n.set(nx/d,ny/d,nz/d);
+    if(o.sail&&b.v.z<0&&_lp.z>=-h.z&&glance(b,o,_lp))continue;
     _n.applyQuaternion(o.q);b.p.addScaledVector(_n,R-d+.004);
     _rv.copy(b.v).sub(o.vel);const vn=_rv.dot(_n);
     if(vn<0){const k=OBK[o.kind];_rv.addScaledVector(_n,-vn).multiplyScalar(k.f).addScaledVector(_n,-vn*k.e);b.v.copy(_rv).add(o.vel);obHit(b,o,-vn)}
   }
+}
+/* Windmill glance: a ball touching the outer 10% of a sail's width (either long edge) or its tip keeps going toward the
+   building instead of bouncing back. It keeps 55-80% of its forward speed (more the nearer the very edge), gets a 3-5 m/s
+   push off the sail plus some of the sail's own motion, and flies on with no aim help or steering. The middle 80% of the
+   sail, the arms and the hub still bounce it back (hitObs). lp: ball centre in the sail's frame (x along it, y across). */
+const _gn=new T.Vector3();
+function glance(b,o,lp){
+  const h=o.h,band=.2*h.y,cy=clamp(lp.y,-h.y,h.y),cx=clamp(lp.x,-h.x,h.x);
+  const side=Math.abs(cy)>h.y-band,tip=cx>h.x-band;if(!side&&!tip)return false;
+  const e=side?(Math.abs(cy)-(h.y-band))/band:(cx-(h.x-band))/band; /* 0 at the band's inner line, 1 at the very edge */
+  _gn.set(side?0:1,side?Math.sign(cy)||1:0,0).applyQuaternion(o.q);_gn.z=0;_gn.normalize(); /* off the sail, in the wall's plane */
+  const push=rnd(3,5);
+  b.v.z*=.55+.25*clamp(e,0,1);b.v.x=b.v.x*.8+_gn.x*push+o.vel.x*.5;b.v.y=b.v.y*.8+_gn.y*push+o.vel.y*.5;
+  b.p.addScaledVector(_gn,.05);
+  b.live=false;b.glance=true;b.glanceT=lt+.15;b.a.set(0,-S.gravity,0);
+  if(b.state==='fly'||b.state==='ground'){b.state='bounce';b.age=Math.min(b.age,.4)}
+  sfx.tick();netSfx(b,'tick');
+  for(let i=0;i<6;i++)dust.emit(b.p.x,b.p.y,b.p.z,rnd(-1.2,1.2),rnd(-.6,1.4),rnd(0,1),rnd(.2,.4),[.92,.8,.6],2);
+  return true;
 }
 function obHit(b,o,imp){
   if(o.hit)o.hit(b);
@@ -183,13 +204,13 @@ sailTex.rotation=Math.PI/2;sailTex.center.set(.5,.5);
 function buildMill(o){
   const g=group,len=o.len,n=o.n||4,sail=new T.MeshLambertMaterial({map:sailTex}),s=o.s||1; /* s: arena scale (long kick), sizes the parts */
   const pl=o.plate||1.1;box(pl,pl,.14,0x6b4a2c,o.x,o.y,.22,g);
-  addOb(box(.34*s,.34*s,o.z-.16,0x6b4a2c,o.x,o.y,(o.z+.16)/2,g),'wood');
+  addOb(box(.34*s,.34*s,o.z-.16,0x6b4a2c,o.x,o.y,(o.z+.16)/2,g),'wood');obs[obs.length-1].mill=true;
   const rot=new T.Group();rot.position.set(o.x,o.y,o.z);g.add(rot);
   const hub=new T.Mesh(new T.CylinderGeometry(.42*s,.48*s,.45,16),mat(0xb8432f));hub.rotation.x=Math.PI/2;hub.castShadow=true;rot.add(hub);
   const cap=new T.Mesh(new T.SphereGeometry(.22*s,12,8),mat(0xffc53a));cap.position.z=.26;rot.add(cap);
   for(let k=0;k<n;k++){const arm=new T.Group();arm.rotation.z=k*Math.PI*2/n;rot.add(arm);
-    addOb(box(len,.17*s,.17*s,0x6b4a2c,len/2,0,0,arm),'wood');
-    addOb(box(len-.6*s,.45*s,.07,sail,(len+.6*s)/2,.275*s,.02,arm),'wood')} /* sail 0.45 wide (× s), its inner edge along the arm */
+    addOb(box(len,.17*s,.17*s,0x6b4a2c,len/2,0,0,arm),'wood');obs[obs.length-1].mill=true;
+    addOb(box(len-.6*s,.45*s,.07,sail,(len+.6*s)/2,.275*s,.02,arm),'wood');Object.assign(obs[obs.length-1],{mill:true,sail:true})} /* sail 0.45 wide (× s), its inner edge along the arm */
   const dir=o.dir||(wind<0?1:-1); /* default: the tops of the sails move with the wind; no wind turns clockwise */
   movers.push(t=>{rot.rotation.z=dir*t*o.speed});
   MILLS.push({x:o.x,y:o.y,z:o.z,len,n,s,dir,speed:o.speed});

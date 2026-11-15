@@ -42,6 +42,7 @@ const sfx={
     for(let i=0;i<10;i++){const q=Math.pow(Math.random(),1.6)*.45;tone(t+.02+q,Math.random()<.5?'triangle':'sine',rnd(2600,7600),rnd(2400,7200),rnd(.05,.13)*(1-q),rnd(.04,.1))}},
   /* falling shards: at most 3 per window, at least 0.12 s apart, so breaks don't chain into noise */
   tink(p){if(!can())return;const t=ac.currentTime;if(t-tinkAt<.12)return;if(p){p.tinks=(p.tinks||0)+1;if(p.tinks>3)return}tinkAt=t;tone(t,'triangle',rnd(3000,6500),rnd(2800,6000),.08,.07);tone(t+.05,'sine',rnd(4000,7500),4000,.045,.05)},
+  tick(){if(!can())return;const t=ac.currentTime;tone(t,'triangle',1100,620,.22,.06);noise(t,'bandpass',2200,2,.25,.04)}, /* a ball glancing off a windmill sail */
   thud(){if(!can())return;const t=ac.currentTime;tone(t,'sine',120,46,.8,.16);noise(t,'lowpass',620,.8,.5,.09)},
   /* roller shutter moving: a run of metal clicks over a low hum (d: length in s; the VS windows use short, quiet ones) */
   rattle(d){if(!can())return;const t=ac.currentTime,L=d||1.5,n=Math.round(L/.07),k=d?.55:1;for(let i=0;i<n;i++)noise(t+i*.07,'bandpass',rnd(1500,2600),4,.16*k*(1-i/(n+4)),.035);tone(t,'sawtooth',72,64,.05*k,L)},

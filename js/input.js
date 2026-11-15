@@ -95,8 +95,8 @@ function kickLive(bp,pt,d,pk){
   balls.push(b);d.steer=b;kickFx(b);
 }
 function kickFx(b){
-  turnKick(b.owner);netKick(b);kidKick(b.owner,b.v);
-  sfx.kick();
+  if(b.owner==='p')vsGo();turnKick(b.owner);netKick(b);kidKick(b.owner,b.v);
+  if(b.owner==='p')sfx.kick(); /* only your own kicks make a sound; the opponent's are silent */
   for(let i=0;i<14;i++)dust.emit(b.p.x+rnd(-.3,.3),.1,D+rnd(-.2,.2),rnd(-1.8,1.8),rnd(.6,2.2),rnd(-.5,1.5),rnd(.25,.5),[.72,.6,.42],3);
   addShake(.1);if(!hintDone){hintDone=true;updateHint()}
 }

@@ -33,7 +33,14 @@ const world=new T.Group(); scene.add(world);
   [-1,1].forEach(s=>[.5,1.1].forEach(y=>box(22,.12,.06,0xefe6d2,s*19,y,-1.48,world,false)));
 })();
 /* ---------- a small neutral crowd standing behind the fence on both sides of the building: flat cut-outs (one sheet of
-   16 people, each a plane facing the camera), heads and shoulders above the fence. Static scenery, no collisions. ---------- */
+   16 people, each a plane facing the camera), adult-sized and standing on a hidden step so heads, shoulders and chests
+   clear the fence; a second, higher row behind. They sway a little, and hop when a window breaks (crowdCheer). ---------- */
+const CROWD=[];
+function crowdCheer(){CROWD.forEach(c=>{if(Math.random()<.75)c.hopT=-rnd(0,.35)})}
+function crowdTick(dt){
+  for(const c of CROWD){let y=0;if(c.hopT!==undefined){c.hopT+=dt;if(c.hopT>0){const u=c.hopT/.42;y=u<1?Math.sin(u*Math.PI)*.38:0;if(u>=1)c.hopT=undefined}}
+    c.m.position.y=c.y0+y;c.m.rotation.z=Math.sin(lt*1.6+c.ph)*.045}
+}
 (function crowd(){
   const N=16,pk=a=>a[Math.floor(Math.random()*a.length)],
     TOPS=['#d94b3d','#3f7fd0','#f2c230','#f4f4f4','#3a9b5c','#8a5bc4','#f08a3c','#2f3542','#e86f9a','#5bc0d6','#9aa3ad','#7a5232'],
@@ -50,11 +57,11 @@ const world=new T.Group(); scene.add(world);
     if(i%6===3){g.fillStyle=pk(TOPS);g.fillRect(cx-15,40,30,6)} /* scarf */
   }});
   const m=new T.MeshBasicMaterial({map:tex,alphaTest:.5,color:0xe6e6e6}); /* a touch darker than full white, so they sit in the scene */
-  const add=(x,z)=>{const hgt=rnd(1.6,1.82),q=new T.PlaneGeometry(hgt*.4,hgt),uv=q.attributes.uv,id=Math.floor(Math.random()*N);
+  const add=(x,z,up)=>{const hgt=rnd(1.95,2.25),q=new T.PlaneGeometry(hgt*.4,hgt),uv=q.attributes.uv,id=Math.floor(Math.random()*N);
     for(let v=0;v<uv.count;v++)uv.setX(v,(id+uv.getX(v))/N);
-    const p=new T.Mesh(q,m);p.position.set(x,hgt/2,z);world.add(p)};
+    const p=new T.Mesh(q,m);p.position.set(x,hgt/2+up,z);world.add(p);CROWD.push({m:p,y0:hgt/2+up,ph:rnd(0,6.3)})};
   /* loose clumps along the fence, beyond the building's sides (the facade is at most ~12.6 m wide each way) */
-  [-1,1].forEach(s=>{let x=13.6;while(x<27){const c=1+Math.floor(Math.random()*3);for(let j=0;j<c;j++)add(s*(x+j*.62),rnd(-2.2,-3.4));x+=c*.62+rnd(.6,2.2)}});
+  [-1,1].forEach(s=>{let x=13.6;while(x<30){const c=2+Math.floor(Math.random()*3);for(let j=0;j<c;j++){add(s*(x+j*.7),rnd(-2.2,-2.8),.3);if(Math.random()<.6)add(s*(x+j*.7+.35),rnd(-3.4,-3.9),.75)}x+=c*.7+rnd(.4,1.4)}});
 })();
 const clouds=[];
 for(let i=0;i<6;i++){const g=new T.Group();for(let k=0;k<4;k++){const m=new T.Mesh(new T.IcosahedronGeometry(rnd(2.5,5),1),bmat(0xffffff));m.position.set(k*4-6,rnd(-1,1),rnd(-1,1));m.scale.y=.62;g.add(m)}g.position.set(rnd(-90,90),rnd(26,44),-110);g.userData.s=rnd(.5,1.2);clouds.push(g);scene.add(g)}
@@ -81,7 +88,7 @@ function placeSpots(){
   PX=LVL&&LVL.vs?-SX:0;camX=camGoal();
   const ks=LVL&&LVL.vs?Math.min(1,(SX-.08)/1.15):1;spot.scale.setScalar(ks);botSpot.scale.setScalar(ks); /* close spots (portrait): smaller discs, so they don't overlap */BX=SX;BZ=D;spot.position.set(PX,0,D);botSpot.position.set(BX,0,BZ);
   if(cur){cur.p.set(cur.owner==='bot'?BX:PX,cur.p.y,D);cur.sh.position.set(cur.p.x,.04,D)}
-  placeBot();placeKids();
+  placeBot();placeKids();placeBoards();
 }
 function layout(){
   W_=$('stage').clientWidth||innerWidth;H_=$('stage').clientHeight||innerHeight;const a=W_/H_;
@@ -102,7 +109,13 @@ function layout(){
 const proj=new T.Vector3();
 function toScreen(x,y,z){proj.set(x,y,z).project(camera);return[(proj.x+1)/2*W_,(1-proj.y)/2*H_]}
 function updateHint(){
-  if(!LVL)return;const t=panes.find(p=>isOpen(p)&&(!p.side||p.side==='p')),show=!hintDone&&!sandbox&&!won&&!VS.intro&&!!LVL.tut&&!!t; /* not during the turn-mode round intro (vs.js introDone shows it) */$('hint').hidden=!show;if(!show)return;
+  if(!LVL)return;
+  /* the hand shows until you have smashed a window once (PROG.tut, kept on the device), or when a match vs the bot has
+     waited 6 s for your first kick. Target: the first tutorial's window while it is open, else the open window nearest
+     straight ahead of you (it only changes when a window opens or closes, never from list order). */
+  const mine=p=>isOpen(p)&&(!p.side||p.side==='p'),need=!PROG.tut||(VS.wait&&VS.waitT>6);
+  hintT=VS.hintP&&mine(VS.hintP)?VS.hintP:panes.filter(mine).sort((a,b)=>Math.abs(a.x-PX)+Math.abs(a.y-4*ak())*.6-Math.abs(b.x-PX)-Math.abs(b.y-4*ak())*.6)[0]||null;
+  const t=hintT,show=need&&!hintDone&&!sandbox&&!won&&!VS.intro&&!!LVL.tut&&!!t; /* not during the turn-mode round intro (vs.js introDone shows it) */$('hint').hidden=!show;if(!show)return;
   const a=toScreen(PX,.3,D),b=toScreen(t.x,t.y,0),h=$('hint');
   h.style.setProperty('--x0',a[0]+'px');h.style.setProperty('--y0',(a[1]-16)+'px');h.style.setProperty('--x1',b[0]+'px');h.style.setProperty('--y1',b[1]+'px');
 }

@@ -82,11 +82,13 @@ function frame(now){
 function tick(dt,real){
   const tl=timers; /* a timer can load a level, which replaces the list */
   for(let i=tl.length-1;i>=0&&tl===timers;i--){tl[i].t-=real;if(tl[i].t<=0){const f=tl[i].f;tl.splice(i,1);f()}}
-  mechTick(dt);glareTick(real);vsTick(dt);botTick(dt);kidTick(dt);
+  mechTick(dt);glareTick(real);vsTick(dt);botTick(dt);kidTick(dt);crowdTick(dt);
   /* the player's next ball appears once their last one is no longer in flight */
   const ks=kickSide();
   if(isLive()&&!cur&&!won&&ks&&!balls.some(b=>b.owner===ks&&b.state==='fly')){spawnWait+=real;if(spawnWait>.22){spawnWait=0;spawnBall()}}else spawnWait=0;
-  if(cur){cur.born+=real;const s=clamp(cur.born/.14,0,1);cur.m.scale.setScalar(s<1?s*(1.25-.25*s):1);cur.p.y=R+(1-s)*.5}
+  if(cur){cur.born+=real;const s=clamp(cur.born/.14,0,1);cur.m.scale.setScalar(s<1?s*(1.25-.25*s):1);cur.p.y=R+(1-s)*.5;
+    /* waiting for your first kick (vs the bot): your ball hops gently on its spot, its shadow shrinking as it rises */
+    const hop=VS.wait&&VS.started&&!paused&&cur.owner==='p'&&!drag&&s>=1?Math.abs(Math.sin(lt*4.2))*.22:0;cur.p.y+=hop;cur.sh.scale.setScalar(1-hop*1.2)}
   for(let i=balls.length-1;i>=0;i--)if(!stepBall(balls[i],dt))balls.splice(i,1);
   netTick(real);
   for(let i=shards.length-1;i>=0;i--){const s=shards[i];if(s.rest)continue;
