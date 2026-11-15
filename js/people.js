@@ -23,6 +23,8 @@ function buildKid(shirt,side){
   [-1,1].forEach(s=>box(.05,.06,.01,BOOT,s*.07,.24,-.155,head,false)); /* eyes */
   const arm=x=>{const g=new T.Group();g.position.set(x,.52,0);torso.add(g);box(.13,.18,.15,shirt,0,-.07,0,g);box(.11,.3,.12,SKIN,0,-.3,0,g);return g};
   const armL=arm(-.31),armR=arm(.31);
+  const blob=new T.Mesh(new T.CircleGeometry(.42,20),new T.MeshBasicMaterial({color:0x14301a,transparent:true,opacity:.32,depthWrite:false}));
+  blob.rotation.x=-Math.PI/2;blob.position.set(0,.035,0);blob.scale.set(1,.8,1);f.add(blob); /* contact shadow: plants the player on the grass */
   f.visible=false;scene.add(f);
   return{f,body,side,kickLeg,plant,torso,armL,armR,kickT:-1,yaw:0,yawGoal:0};
 }

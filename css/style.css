@@ -107,13 +107,23 @@ html,body{height:100%;margin:0;overflow:hidden;background:#8fd0ee;font-family:va
 /* Turn mode HUD pinned to the kick spots (placeTags in vs.js): the turn label above the kicking side's ball, and each side's
    footballs for its turn + kicks left beside its spot (yours on the left, the opponent's on the right). */
 #tags{position:absolute;inset:0;pointer-events:none}
-.tlabel{position:absolute;left:0;top:0;transform:translate(-50%,-100%);white-space:nowrap;font:400 18px/1 var(--display);color:#fff;padding:8px 13px;border-radius:999px;letter-spacing:.5px}
+.tlabel{position:absolute;left:0;top:0;transform:translate(-50%,-50%);display:flex;align-items:center;gap:8px;white-space:nowrap;font:400 18px/1 var(--display);color:#fff;padding:8px 13px;border-radius:999px;letter-spacing:.5px}
+/* the arrow points at the side that kicks and keeps nudging that way (left toward you, right toward the opponent) */
+.tlabel .arw{display:block;width:0;height:0;border-top:8px solid transparent;border-bottom:8px solid transparent}
+.tlabel.you .arw{border-right:12px solid #fff;animation:nudgeL .7s ease-in-out infinite}
+.tlabel.bot .arw{border-left:12px solid #fff;animation:nudgeR .7s ease-in-out infinite}
+@keyframes nudgeL{0%,100%{transform:translateX(0)}50%{transform:translateX(-6px)}}
+@keyframes nudgeR{0%,100%{transform:translateX(0)}50%{transform:translateX(6px)}}
 .tlabel.you{background:var(--you);box-shadow:0 3px 0 var(--you-d)}
 .tlabel.bot{background:var(--bot);box-shadow:0 3px 0 var(--bot-d)}
-.tlabel.pop{animation:turnPop .4s cubic-bezier(.2,1.6,.4,1)}
+.tlabel.you.pop{animation:turnInL .45s cubic-bezier(.2,1.4,.4,1)}
+.tlabel.bot.pop{animation:turnInR .45s cubic-bezier(.2,1.4,.4,1)}
 .tlabel.blink{animation:blink .8s ease-in-out infinite}
-@keyframes turnPop{from{transform:translate(-50%,-100%) scale(.6);opacity:0}to{transform:translate(-50%,-100%) scale(1);opacity:1}}
-@keyframes blink{0%,100%{opacity:1;transform:translate(-50%,-100%) scale(1.06)}50%{opacity:.15;transform:translate(-50%,-100%) scale(1)}}
+.tlabel.you.pop.blink{animation:turnInL .45s cubic-bezier(.2,1.4,.4,1),blink .8s ease-in-out .45s infinite} /* slide in toward the player, then blink */
+.tlabel.bot.pop.blink{animation:turnInR .45s cubic-bezier(.2,1.4,.4,1),blink .8s ease-in-out .45s infinite}
+@keyframes turnInL{from{transform:translate(-10%,-50%) scale(.7);opacity:0}to{transform:translate(-50%,-50%) scale(1);opacity:1}}
+@keyframes turnInR{from{transform:translate(-90%,-50%) scale(.7);opacity:0}to{transform:translate(-50%,-50%) scale(1);opacity:1}}
+@keyframes blink{0%,100%{opacity:1;transform:translate(-50%,-50%) scale(1.06)}50%{opacity:.15;transform:translate(-50%,-50%) scale(1)}}
 .kicks{position:absolute;left:0;top:0;display:flex;align-items:center;gap:6px;padding:4px 9px;border-radius:999px;background:rgba(35,48,74,.6);transition:opacity .25s;white-space:nowrap}
 .kicks.you{flex-direction:row-reverse;box-shadow:inset 0 0 0 2px var(--you)}
 .kicks.bot{box-shadow:inset 0 0 0 2px var(--bot)}
@@ -125,15 +135,7 @@ html,body{height:100%;margin:0;overflow:hidden;background:#8fd0ee;font-family:va
 .kicks em{display:flex;align-items:center;gap:3px;font:900 14px/1 var(--body);font-style:normal;color:#fff}
 .kicks em svg{width:14px;height:14px;display:block}
 #score b small{font-size:.55em;opacity:.8}
-/* turn mode: window icons instead of numbers (vs.js winIcons) */
-#score.wins b{display:flex;gap:3px;padding:6px 8px;min-width:0;background:#fff;box-shadow:0 0 0 2px var(--ink),0 3px 0 2px var(--ink);-webkit-text-stroke:0}
-#score.wins .you{color:var(--you)}#score.wins .bot{color:var(--bot)}
-#score.wins svg{width:22px;height:22px;display:block}
-#score.wins svg.br{opacity:.35}
-#score.wins svg.bump{animation:bump .35s cubic-bezier(.2,1.8,.4,1)}
-@media (max-width:380px){#score.wins svg{width:18px;height:18px}}
-@media (prefers-reduced-motion:reduce){#score.wins svg.bump{animation:none}}
-@media (prefers-reduced-motion:reduce){.tlabel.pop{animation:none}.tlabel.blink{animation:pulse 1.6s ease-in-out infinite}}
+@media (prefers-reduced-motion:reduce){.tlabel.pop,.tlabel.pop.pop,.tlabel .arw{animation:none}.tlabel.blink,.tlabel.you.pop.blink,.tlabel.bot.pop.blink{animation:pulse 1.6s ease-in-out infinite}}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.55}}
 
 /* ---------- Start screen (menu view 'main'): the live game shows through; logo, a big PLAY, the Timed/Turns switch,

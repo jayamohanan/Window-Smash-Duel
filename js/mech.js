@@ -66,11 +66,15 @@ function obHit(b,o,imp){
   for(let i=0;i<12;i++)dust.emit(b.p.x,b.p.y,b.p.z,rnd(-2,2),rnd(-1,2.4),rnd(0,2),rnd(.25,.5),[.92,.8,.6],2);
 }
 
+/* Windmills ease in vs the bot while you are still learning the swipe: match 2 (the first after practice) has short
+   (×0.7), slow (×0.55) sails, matches 3 and 4 step toward full, match 5 on is full. Online (both devices must match) and
+   pass-and-play always get full windmills. 0 = gentlest, 1 = full. */
+function millEase(){return OPP.mode!=='bot'?1:clamp((PROG.played-1)/3,0,1)}
 /* Build every mechanic a level lists. Runs after buildFacade/buildStand. */
 function buildMech(L){
   if(L.field==='carousel')buildCarousel(L);else if(L.field==='flip')buildFlips(L);
   panes.forEach(p=>{if(p.shutter)buildShutter(p);if(p.armor)buildBoards(p);if(p.hp>1)buildWired(p)});
-  if(!isPractice())(L.mills||(L.mill?[L.mill]:[])).forEach(buildMill); /* the practice match (vs.js) has no windmills */
+  if(!isPractice()){const e=millEase();(L.mills||(L.mill?[L.mill]:[])).forEach(m=>buildMill(e<1?Object.assign({},m,{len:m.len*lerp(.7,1,e),speed:m.speed*lerp(.55,1,e)}):m))} /* the practice match (vs.js) has no windmills */
   if(L.wheel)buildWheel(L.wheel);
   if(L.gantry)buildGantry(L.gantry);
   if(L.spin)buildSpins(L);
@@ -86,8 +90,8 @@ const SH_T=4.2,SH_MOVE=.42;
 function shutAmt(t,ph){const u=((t/SH_T+ph)%1+1)%1;let f=u<.4?0:u<.48?(u-.4)/.08:u<.92?1:1-(u-.92)/.08;return f*f*(3-2*f)}
 function buildShutter(p){
   const top=p.y+p.h/2,bh=.26,n=Math.ceil(p.h/bh)+1,bars=[],ctrl=!!p.shutter.ctrl;
-  for(let j=0;j<n;j++){const m=box(p.w+.12,bh*.95,.07,j%2?0x9aa6b8:0x8793a6,p.x,top,.3,group,false);m.visible=false;bars.push(m)}
-  const hous=box(p.w+.5,.46,.56,0x5f6b80,p.x,top+.2,.36,group);
+  for(let j=0;j<n;j++){const m=box(p.w+.12,bh*.95,.07,j%2?0x8490a4:0x778398,p.x,top,.3,group,false);m.visible=false;bars.push(m)}
+  const hous=box(p.w+.5,.46,.56,0x5a6479,p.x,top+.2,.36,group);
   if(ctrl){p.shutK=p.shutGoal=p.shutter.start===undefined?1:p.shutter.start}
   const place=f=>{const yb=top-f*p.h;p.shutF=f;p.shutY=yb;bars.forEach((m,j)=>{const cy=yb+(j+.5)*bh;m.position.y=cy;m.visible=f>.003&&cy-bh/2<top})};
   place(ctrl?p.shutK:0);

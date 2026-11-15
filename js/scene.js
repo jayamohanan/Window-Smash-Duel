@@ -7,8 +7,8 @@ renderer.shadowMap.enabled=true; renderer.shadowMap.type=T.PCFSoftShadowMap;
 const scene=new T.Scene(), camera=new T.PerspectiveCamera(46,1,.1,400);
 function canvasTex(w,h,draw){const c=document.createElement('canvas');c.width=w;c.height=h;draw(c.getContext('2d'),w,h);return new T.CanvasTexture(c)}
 scene.background=canvasTex(8,256,(g,w,h)=>{const a=g.createLinearGradient(0,0,0,h);a.addColorStop(0,'#3f9fdf');a.addColorStop(.55,'#9bd6ef');a.addColorStop(.75,'#ffe9bf');g.fillStyle=a;g.fillRect(0,0,w,h)});
-const hemi=new T.HemisphereLight(0xffffff,0x93b56a,.72);scene.add(hemi);
-const sun=new T.DirectionalLight(0xfff1d6,.72); sun.position.set(-11,20,17); sun.castShadow=true;
+const hemi=new T.HemisphereLight(0xe4f2ff,0x9aab78,.58); /* softer fill + stronger sun = more shape and colour (was .72/.72, flat) */scene.add(hemi);
+const sun=new T.DirectionalLight(0xffeccc,.86); sun.position.set(-10,18,21); /* fairly frontal (lights the facade) without blowing it out */ sun.castShadow=true;
 sun.shadow.mapSize.set(2048,2048);Object.assign(sun.shadow.camera,{left:-30,right:30,top:34,bottom:-26,near:1,far:110}); /* room for the bigger, farther arena (long kick) */ scene.add(sun);
 
 const TEAM_P=0x2a8a3e,TEAM_B=0xf08a24; /* you: dark green, opponent: orange (dark vs bright, readable for colour-blind players too) */ /* team colours (vs.js TEAM uses the same) */
@@ -21,7 +21,7 @@ function box(w,h,d,c,x,y,z,p,shadow){const m=new T.Mesh(new T.BoxGeometry(w,h,d)
 /* ---------- static yard ---------- */
 const world=new T.Group(); scene.add(world);
 (function yard(){
-  const tex=canvasTex(256,256,(g,w,h)=>{for(let i=0;i<4;i++){g.fillStyle=i%2?'#6bb64f':'#62ac47';g.fillRect(i*w/4,0,w/4,h)}for(let i=0;i<1400;i++){g.fillStyle=Math.random()<.5?'rgba(255,255,190,.05)':'rgba(20,70,20,.06)';g.fillRect(Math.random()*w,Math.random()*h,2,5)}});
+  const tex=canvasTex(256,256,(g,w,h)=>{for(let i=0;i<4;i++){g.fillStyle=i%2?'#58a444':'#4f9a3c';g.fillRect(i*w/4,0,w/4,h)}for(let i=0;i<1400;i++){g.fillStyle=Math.random()<.5?'rgba(255,255,190,.05)':'rgba(20,70,20,.06)';g.fillRect(Math.random()*w,Math.random()*h,2,5)}});
   tex.wrapS=tex.wrapT=T.RepeatWrapping; tex.repeat.set(16,16); tex.anisotropy=4;
   const ground=new T.Mesh(new T.PlaneGeometry(320,320),new T.MeshLambertMaterial({map:tex}));
   ground.rotation.x=-Math.PI/2; ground.receiveShadow=true; world.add(ground);

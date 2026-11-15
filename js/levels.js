@@ -35,10 +35,11 @@ const balls=[],shards=[],debris=[];
 let timers=[];
 const later=(s,f)=>timers.push({t:s,f});
 
-/* Intact glass: an even light-blue tint with one thin, soft diagonal highlight (kept plain on purpose, 2026-11-14). */
+/* Intact glass: a bright sky blue, lighter toward the bottom (nearly opaque, so it doesn't wash out to the sky colour) with one crisp diagonal
+   highlight. Still plain (2026-11-14), just bolder (2026-11-15): the glass is the target, so it is the brightest thing on the wall. */
 function glassPaint(top,bot,hi){return canvasTex(256,256,(g,w,h)=>{const a=g.createLinearGradient(0,0,0,h);a.addColorStop(0,top);a.addColorStop(1,bot);g.fillStyle=a;g.fillRect(0,0,w,h);
-  g.save();g.translate(w*.5,h*.5);g.rotate(-.75);const b=g.createLinearGradient(0,-60,0,-36);b.addColorStop(0,'rgba(255,255,255,0)');b.addColorStop(.5,hi);b.addColorStop(1,'rgba(255,255,255,0)');g.fillStyle=b;g.fillRect(-w,-60,w*2,24);g.restore()})}
-const glassTex=glassPaint('rgba(120,192,238,.72)','rgba(150,208,242,.62)','rgba(255,255,255,.55)');
+  g.save();g.translate(w*.5,h*.5);g.rotate(-.75);const b=g.createLinearGradient(0,-60,0,-36);b.addColorStop(0,'rgba(255,255,255,0)');b.addColorStop(.35,hi);b.addColorStop(.65,hi);b.addColorStop(1,'rgba(255,255,255,0)');g.fillStyle=b;g.fillRect(-w,-60,w*2,30);g.restore()})}
+const glassTex=glassPaint('rgba(62,160,236,.93)','rgba(124,198,246,.9)','rgba(255,255,255,.85)');
 const glassMat=new T.MeshBasicMaterial({map:glassTex,transparent:true,depthWrite:false,side:T.DoubleSide});
 /* Prize window: the same glass in gold. */
 const goldTex=glassPaint('rgba(255,196,50,.88)','rgba(255,214,90,.8)','rgba(255,255,235,.6)');
@@ -80,10 +81,10 @@ function makePane(p,parent){const m=new T.Mesh(new T.PlaneGeometry(p.w,p.h),glas
 /* ---------- facade: a stone wall full of windows, solid between them (a miss thuds off and costs time).
    Front face at ZF, so crossPlane judges glass, shutter and wall at the same plane. Open behind: through a broken window
    you see the yard on the other side (where a bot on the far side would stand). ---------- */
-const stoneTex=canvasTex(256,256,(g,w,h)=>{g.fillStyle='#e8d2ac';g.fillRect(0,0,w,h);const rows=4,rh=h/rows;
-  for(let r=0;r<rows;r++){const off=r%2?w/4:0;for(let c=-1;c<3;c++){g.fillStyle='rgba(255,255,255,'+(.03+((r*7+c*3+9)%5)*.025)+')';g.fillRect(c*w/2+off+4,r*rh+4,w/2-8,rh-8)}}
-  g.fillStyle='#c9ad82';for(let r=0;r<=rows;r++)g.fillRect(0,r*rh-2,w,4);
-  for(let r=0;r<rows;r++){const off=r%2?w/4:0;for(let c=0;c<3;c++)g.fillRect(c*w/2+off-2,r*rh,4,rh)}});
+const stoneTex=canvasTex(256,256,(g,w,h)=>{g.fillStyle='#e3bd86';g.fillRect(0,0,w,h);const rows=4,rh=h/rows;
+  for(let r=0;r<rows;r++){const off=r%2?w/4:0;for(let c=-1;c<3;c++){g.fillStyle='rgba(255,255,255,'+(.02+((r*7+c*3+9)%5)*.015)+')';g.fillRect(c*w/2+off+4,r*rh+4,w/2-8,rh-8)}}
+  g.fillStyle='#d2a971';for(let r=0;r<=rows;r++)g.fillRect(0,r*rh-1.5,w,3);
+  for(let r=0;r<rows;r++){const off=r%2?w/4:0;for(let c=0;c<3;c++)g.fillRect(c*w/2+off-1.5,r*rh,3,rh)}});
 stoneTex.wrapS=stoneTex.wrapT=T.RepeatWrapping;stoneTex.repeat.set(.4,.4);
 function buildFacade(L){
   const g=group,W=L.W,H=L.H,pw=PED.w,ph=PED.h;
@@ -93,15 +94,16 @@ function buildFacade(L){
     const sh=new T.Shape();sh.moveTo(-W,0);sh.lineTo(W,0);sh.lineTo(W,H);sh.lineTo(-W,H);sh.closePath();panes.forEach(p=>hole(sh,p));shapes=[sh]}
   else{const sh=new T.Shape();sh.moveTo(-W,0);sh.lineTo(W,0);sh.lineTo(W,H);sh.lineTo(pw,H);sh.lineTo(pw,H+ph);sh.absarc(0,H+ph,pw,0,Math.PI,false);sh.lineTo(-pw,H);sh.lineTo(-W,H);sh.closePath();
     panes.forEach(p=>hole(sh,p));shapes=[sh]}
-  const wall=new T.Mesh(new T.ExtrudeGeometry(shapes,{depth:.38,bevelEnabled:false,curveSegments:24}),[new T.MeshLambertMaterial({map:stoneTex}),mat(0xc9ad82)]);
+  const wall=new T.Mesh(new T.ExtrudeGeometry(shapes,{depth:.38,bevelEnabled:false,curveSegments:24}),[new T.MeshLambertMaterial({map:stoneTex}),mat(0xbf9258)]);
   wall.position.z=ZF-.38;wall.castShadow=true;wall.receiveShadow=true;g.add(wall);
-  if(tb){box(W*2+.3,.55,.62,0xb79a70,0,.275,ZF-.19,g); /* plinth */
-    box(W*2+.5,.3,.6,0xd8bf95,0,H+.15,ZF-.19,g); /* flat cornice */
-    if(!shuffled())box(.4,H,.62,0xd8bf95,0,H/2,ZF-.19,g)} /* centre pilaster: your half | the opponent's half (classic split only) */
-  else{box(W*2+.3,.55,.62,0xb79a70,0,.275,ZF-.19,g); /* plinth */
-    [-1,1].forEach(s=>box(W-pw+.2,.3,.6,0xd8bf95,s*(W+pw)/2+s*.05,H+.15,ZF-.19,g))} /* cornice either side of the raised centre */
-  [-1,1].forEach(s=>box(.4,H+.3,.62,0xd8bf95,s*(W+.05),(H+.3)/2,ZF-.19,g)); /* corner posts */
+  if(tb){box(W*2+.3,.55,.62,0xa57c48,0,.275,ZF-.19,g); /* plinth */
+    box(W*2+.5,.3,.6,0xf6e0b6,0,H+.15,ZF-.19,g); /* flat cornice */
+    if(!shuffled())box(.4,H,.62,0xf6e0b6,0,H/2,ZF-.19,g)} /* centre pilaster: your half | the opponent's half (classic split only) */
+  else{box(W*2+.3,.55,.62,0xa57c48,0,.275,ZF-.19,g); /* plinth */
+    [-1,1].forEach(s=>box(W-pw+.2,.3,.6,0xf6e0b6,s*(W+pw)/2+s*.05,H+.15,ZF-.19,g))} /* cornice either side of the raised centre */
+  [-1,1].forEach(s=>box(.4,H+.3,.62,0xf6e0b6,s*(W+.05),(H+.3)/2,ZF-.19,g)); /* corner posts */
   panes.forEach(p=>{makeFrame(p,g,p.fc||FRAME);makePane(p,g);
+    const f=.2*Math.sqrt(ak());box(p.w+f*3.2,f*.6,.56,0xf6e0b6,0,-f*.8,.1,p.frame[1]); /* stone sill under the window: gives the facade depth (visual only) */
     if(p.side)p.inner=roomBehind(p,g)});
   if(!tb)clock=buildClock(0,H+ph,ak()); /* turn mode has no clock: the footballs in the turn pill count kicks */
 }

@@ -8,8 +8,8 @@
    a "+1" rises over the scorer's kick spot. A draw at the bell goes to sudden death: the next point wins.
    Warm-up (once per device, the first timed match vs the bot): no opponent, no clock, no gold; smash 2 windows (they
    don't score), then "HERE COMES YOUR OPPONENT!", it pops in, the clock starts. VS.warm: 1 = warming up, 2 = arriving.
-   That first match is the PRACTICE match: no windmills (mech.js buildMech), "PRACTICE" on the end panel. The next match
-   vs the bot with windmills says "WATCH OUT FOR THE WINDMILLS!" once (PROG.mills). */
+   That first match is the PRACTICE match: no windmills (mech.js buildMech), "PRACTICE" on the end panel. After it the
+   windmills ease in over a few matches (mech.js millEase), with no banner. */
 const isPractice=()=>OPP.mode==='bot'&&!PROG.warm&&turnsPer()===0&&!sandbox&&!!(LVL&&LVL.vs);
 const TEAM={p:TEAM_P,bot:TEAM_B},FRAME=0xfffaf0,GOLD=0xffc53a;
 const VS={on:false,started:false,wait:false,waitT:0,hintP:null,over:false,sudden:false,t:0,len:60,score:{p:0,bot:0},prize:null,prizeT:0,gap:0,recent:[],tickS:-1};
@@ -28,14 +28,14 @@ function vsStart(L){
   if(OPP.mode==='bot')botReady();else botSpot.visible=true; /* a person plays orange: no robot */
   if(VS.warm)oppShow(false);
   if(VS.tb){VS.intro=true;hideLater();oppShow(false);beginTurn(OPP.mode==='net'&&!NET.host?'bot':'p')} /* turn mode: green starts; online, whoever created the game */
-  const go=()=>{if(VS.tb)roundIntro();later(.8,()=>{if(!VS.on)return;VS.started=true;if(VS.tb)SHUF.played=true;if(VS.warm)warmBanner();else if(!VS.tb){if(!VS.wait)botStart();millNote()}})}; /* the first shutters rolling up are the start signal */
+  const go=()=>{if(VS.tb)roundIntro();later(.8,()=>{if(!VS.on)return;VS.started=true;if(VS.tb)SHUF.played=true;if(VS.warm)warmBanner();else if(!VS.tb&&!VS.wait)botStart()})}; /* the first shutters rolling up are the start signal */
   if(tapped)go();else startGo=go; /* very first round waits for the tap-to-play gate (ui.js) */
 }
 /* Start gate: the round waits behind the menu until a mode is picked (ui.js startMode, which reloads the round with
    tapped set); that tap also switches sound on (iOS only allows that from a gesture). */
 let tapped=false,startGo=null;
 function vsTick(dt){
-  prizeTagTick(dt);boardTick(dt);crownTick(dt);
+  prizeTagTick(dt);boardTick(dt);crownTick(dt);wallScoreTick(dt);
   if(VS.on&&!VS.started&&!tapped&&!VS.tb){demoTick(dt);return} /* start screen: shutters roll up and down behind the menu */
   if(!VS.on||!VS.started||VS.over)return;
   if(VS.wait)VS.waitT+=dt; /* still no kick after 6 s: the swipe hand comes back (updateHint) */
@@ -144,8 +144,9 @@ function endTurn(){
   beginTurn('p');
 }
 /* Turn mode HUD, pinned to the kick spots (placeTags runs every frame, so it follows the camera):
-   - the turn label ("YOUR TURN" / "FRIEND'S TURN" / "PLAYER 2" …) floats above the kicking side's ball (above the robot's head);
-     on a turn played on this device it blinks until that player grabs the ball;
+   - the turn label ("YOUR TURN" / "FRIEND'S TURN" / "PLAYER 2" …) floats between the two players at shoulder height with
+     an arrow nudging toward the side that kicks (left toward you, right toward the opponent); it slides in that way too.
+     On a turn played on this device it blinks until that player grabs the ball;
    - each side's footballs for its turn (used ones fade) plus its kicks left: yours to the left of your spot, the
      opponent's to the right of theirs (below the spot when there's no room); dimmed while it isn't their turn. */
 const BALL_ICON='<svg viewBox="-24 -24 48 48" aria-hidden="true"><use href="#ballIcon"/></svg>';
@@ -154,7 +155,8 @@ function turnLabel(fresh){
   ['p','bot'].forEach(s=>{
     const on=VS.turn===s,L=$(s==='p'?'tlP':'tlB'),K=$(s==='p'?'kkP':'kkB');
     L.hidden=!on;
-    if(on){L.textContent=(VS.sudden?'SUDDEN DEATH · ':'')+sideName(s);L.classList.toggle('blink',!!VS.blink);
+    if(on){const t='<span>'+(VS.sudden?'SUDDEN DEATH · ':'')+sideName(s)+'</span>',a='<i class="arw" aria-hidden="true"></i>';
+      L.innerHTML=s==='p'?a+t:t+a; /* the arrow points at that player: left toward you, right toward the opponent */L.classList.toggle('blink',!!VS.blink);
       if(fresh){L.classList.remove('pop');void L.offsetWidth;L.classList.add('pop')}}
     const n=on?VS.turnN||1:VS.sudden?1:Math.max(1,Math.min(turnsPer(),TB_KICKS-VS.kicks[s])),left=on?VS.left:n;
     K.classList.toggle('idle',!on);
@@ -166,8 +168,9 @@ function placeTags(){
   if($('tags').hidden)return;
   [['p',PX,'tlP','kkP',-1],['bot',BX,'tlB','kkB',1]].forEach(([s,x,l,k,dir])=>{
     const L=$(l);
-    /* the label sits just above the player's head (the footballer beside the ball; the robot's head is higher) */
-    if(!L.hidden){const kf=KIDS[s].f.position,a=s==='bot'&&OPP.mode==='bot'?toScreen(x,3.1,D):toScreen(kf.x,2.02,kf.z),hw=L.offsetWidth/2;L.style.left=clamp(a[0],hw+8,W_-hw-8)+'px';L.style.top=Math.max(a[1],96)+'px'}
+    /* the label floats between the two players at shoulder height, its arrow pointing at whoever kicks */
+    if(!L.hidden){const a=toScreen((KIDS.p.f.position.x+(OPP.mode==='bot'?BX:KIDS.bot.f.position.x))/2,1.35,D+.2),hw=L.offsetWidth/2,hh=L.offsetHeight/2;
+      L.style.left=clamp(a[0],hw+8,W_-hw-8)+'px';L.style.top=clamp(a[1],60+hh,H_-hh-8)+'px'}
     const K=$(k),w=K.offsetWidth,h=K.offsetHeight,b=toScreen(x+dir*1.5,R,D),c=toScreen(x,0,D);
     let left=dir<0?b[0]-w:b[0],top=b[1]-h/2;
     /* no room at the side: just below the spot, if the spot is on screen (else it stays at the screen edge on its side) */
@@ -291,12 +294,6 @@ function warmEnd(){
   later(1.5,()=>{if(VS.on&&OPP.mode==='bot')oppArrive()});
   later(2.9,()=>{if(!VS.on||VS.over)return;VS.warm=0;VS.t=0;VS.score.p=VS.score.bot=0;drawScore();sfx.ding();VS.wait=true;VS.waitT=0}); /* the match starts on your next kick */
 }
-/* first windmill match vs the bot: say so once */
-function millNote(){
-  if(OPP.mode!=='bot'||PROG.mills||!MILLS.length)return;PROG.mills=true;progSave();
-  const b=$('intro');b.innerHTML='WATCH OUT FOR THE <span class="bot">WINDMILLS!</span>';b.hidden=false;b.classList.remove('go','warm');void b.offsetWidth;b.classList.add('go');
-  clearTimeout(roundIntro.t);roundIntro.t=setTimeout(()=>b.hidden=true,3200);
-}
 /* the opponent pops in on its spot with a puff of dust */
 function oppArrive(){
   oppShow(true);sfx.rattle(.5);const f=BOT.fig,t0=performance.now();f.scale.setScalar(.01);
@@ -304,28 +301,44 @@ function oppArrive(){
   const step=()=>{const u=Math.min(1,(performance.now()-t0)/450),c=1.7,e=1+(c+1)*Math.pow(u-1,3)+c*Math.pow(u-1,2);f.scale.setScalar(Math.max(.01,e));if(u<1)requestAnimationFrame(step)};
   requestAnimationFrame(step);
 }
-/* Turn mode: the window icons at the top. Timed mode: the scoreboards beside the kick spots (no top score); a call
-   without who (round start, warm-up end) sets the boards to the score straight away. Hidden outside VS. */
+/* Turn mode: big numbers standing on top of the building (wallScoreTick). Timed mode: the scoreboards beside the kick
+   spots. No top score in either; a call without who (round start, warm-up end) sets the boards to the score straight away. */
 function drawScore(who){
   if(!who)boardsReset();
-  const on=VS.on&&!sandbox&&!VS.warm;$('score').hidden=!on||!VS.tb; /* warm-up: no score yet */if(!on){$('tags').hidden=true;return}
-  $('score').classList.toggle('wins',!!VS.tb);if(!VS.tb)timerText(Math.ceil(Math.max(0,VS.len-VS.t)));
-  if(VS.tb){winIcons('p',who==='p');winIcons('bot',who==='bot');return}
-  $('scP').textContent=VS.score.p;$('scB').textContent=VS.score.bot;
-  if(who){const e=$(who==='p'?'scP':'scB');e.classList.remove('bump');void e.offsetWidth;e.classList.add('bump')}
+  $('score').hidden=true;const on=VS.on&&!sandbox&&!VS.warm; /* warm-up: no score yet */if(!on){$('tags').hidden=true;return}
+  if(!VS.tb)timerText(Math.ceil(Math.max(0,VS.len-VS.t)));
+  if(VS.tb){wallScore('p',who==='p');wallScore('bot',who==='bot')}
 }
-/* Turn mode score: one window icon per window of that side, no numbers. Broken ones become a dimmed broken-window icon,
-   filling in from the outer end (green from the left, orange from the right), so the full, bright icons stay near the middle. */
-function winIcons(s,bump){
-  const n=halfCount(s),k=Math.min(n,VS.score[s]),e=$(s==='p'?'scP':'scB');
-  e.setAttribute('aria-label',k+' of '+n+' windows smashed');
-  e.innerHTML=Array.from({length:n},(_,i)=>{const j=s==='p'?i:n-1-i,br=j<k; /* j: position counted from the outer end */
-    return '<svg viewBox="-12 -12 24 24" class="'+(br?'br':'')+(br&&bump&&j===k-1?' bump':'')+'" aria-hidden="true"><use href="#'+(br?'winBroken':'winIcon')+'"/></svg>'}).join('');
+/* ---------- turn mode score on the building ----------
+   Each side's count of smashed windows as a plain number (no "/ 6") in its colour, standing on the cornice at the top
+   centre of its half: green over the left half, orange over the right. It bumps when it goes up. The opponent's number
+   appears with them, after the round intro. */
+const WSC={};
+(function buildWallScore(){
+  ['p','bot'].forEach(s=>{const cv=document.createElement('canvas');cv.width=256;cv.height=256;const tex=new T.CanvasTexture(cv);tex.anisotropy=4;
+    const sp=new T.Sprite(new T.SpriteMaterial({map:tex,depthWrite:false}));sp.renderOrder=5;sp.visible=false;scene.add(sp);
+    WSC[s]={cv,tex,sp,n:-1,bumpT:-1,k:0}});
+  const F='400 120px "Lilita One"';if(document.fonts&&!document.fonts.check(F))document.fonts.load(F).then(()=>{for(const s in WSC){WSC[s].n=-1;wallScore(s)}},()=>{}); /* iOS: redraw once the font is in */
+})();
+function wallScore(s,bump){
+  const W=WSC[s],n=VS.score[s];if(bump)W.bumpT=0;if(W.n===n)return;W.n=n;
+  const g=W.cv.getContext('2d'),w=W.cv.width,h=W.cv.height,t=String(n),hex='#'+TEAM[s].toString(16).padStart(6,'0');
+  g.clearRect(0,0,w,h);g.font='400 '+(t.length>1?170:200)+'px "Lilita One","Trebuchet MS",sans-serif';g.textAlign='center';g.textBaseline='middle';g.lineJoin='round';
+  g.lineWidth=26;g.strokeStyle='#23304a';g.strokeText(t,w/2,h/2+14);g.fillStyle=hex;g.fillText(t,w/2,h/2+14);W.tex.needsUpdate=true;
+}
+const wallScoreAt=(s,v)=>v.set((s==='p'?-.5:.5)*LVL.W,LVL.H+.3+1.05*ak(),ZF-.1);
+function wallScoreTick(dt){
+  const on=VS.on&&VS.tb&&!sandbox&&!VS.warm&&!!(LVL&&LVL.vs)&&!document.body.classList.contains('menuOn');
+  for(const s in WSC){const W=WSC[s],want=on&&(s==='p'||!VS.intro);
+    W.k=want?Math.min(1,W.k+dt*6):0;W.sp.visible=W.k>0;if(!W.sp.visible)continue;
+    let sc=1-Math.pow(1-W.k,3);
+    if(W.bumpT>=0){W.bumpT+=dt;const u=Math.min(1,W.bumpT/.45);sc*=1+.35*Math.exp(-u*5)*Math.cos(u*9);if(u>=1)W.bumpT=-1}
+    const z=2.1*ak()*sc;wallScoreAt(s,W.sp.position);W.sp.scale.set(z,z,1)}
 }
 /* "+1" (or "+3" for gold) rising and fading in the scorer's colour: over their scoreboard (timed), over their kick spot (turn mode). */
 function gainPop(who,pts){
-  const bp=SB.g.visible?halfAt(who,new T.Vector3()):null;
-  const s=bp?toScreen(bp.x,bp.y+(SB.H||SB_WIDE.h)*.8,bp.z):who==='p'?toScreen(PX,R+1.1,D):toScreen(BX,OPP.mode==='bot'?2.7:R+1.1,BZ),d=document.createElement('div');
+  const bp=SB.g.visible?halfAt(who,new T.Vector3()):VS.tb&&WSC[who]&&WSC[who].sp.visible?wallScoreAt(who,new T.Vector3()):null;
+  const s=bp&&VS.tb?toScreen(bp.x,bp.y+1.1*ak(),bp.z):bp?toScreen(bp.x,bp.y+(SB.H||SB_WIDE.h)*.8,bp.z):who==='p'?toScreen(PX,R+1.1,D):toScreen(BX,OPP.mode==='bot'?2.7:R+1.1,BZ),d=document.createElement('div');
   d.className='gain '+(who==='p'?'you':'bot')+(pts>1?' big':'');d.textContent='+'+pts;
   d.style.left=clamp(s[0],40,W_-40)+'px';d.style.top=clamp(s[1],60,H_-30)+'px';$('stage').appendChild(d);setTimeout(()=>d.remove(),1200);
 }

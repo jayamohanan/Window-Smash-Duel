@@ -45,6 +45,9 @@ function liveDown(e){
   drag={id:e.pointerId,pts:[vp],last:vp,top:vp.y,topX:vp.x,armed:true,off};
   turnGrab();
 }
+/* Sideways steering weight just after the kick: the thumb is still finishing its arc (a right thumb curls right, a left
+   one left), so that drift is ignored for S.steerWait ms, then sideways steering fades in over the next 120 ms. */
+const sideW=(b,t)=>b.kickT===undefined?1:clamp((t-b.kickT-S.steerWait)/120,0,1);
 /* Steering after the kick nudges the ball's velocity (aftertouch); the flight stays a real arc.
    Lift is budgeted per kick so a weak kick still falls short. */
 function applySteer(b,dx,dy){
@@ -57,7 +60,7 @@ function liveMove(e){
   const d=drag,pt=point(e);if(d.off){pt.x+=d.off.x;pt.y+=d.off.y} /* press-anywhere drag: in ball-relative screen space */d.pts.push(pt);if(d.pts.length>120)d.pts.splice(0,1);if(pt.y<d.top){d.top=pt.y;d.topX=pt.x}
   if(d.steer){const b=d.steer;if(b.plus){d.last=pt;return} /* Live+: no aftertouch */
     if(pt.y<b.topY)b.topY=pt.y;
-    if(b.live&&b.state==='fly')applySteer(b,pt.x-d.last.x,pt.y-d.last.y);d.last=pt;return}
+    if(b.live&&b.state==='fly')applySteer(b,(pt.x-d.last.x)*sideW(b,pt.t),pt.y-d.last.y);d.last=pt;return}
   if(d.go){const sp=Math.hypot(...Object.values(swipeVel(d)));d.go.pk=Math.max(d.go.pk,sp);
     if(sp<d.go.pk*.3&&pt.t-d.go.t>40)firePlus(d);d.last=pt;return}
   if(cur&&cur.born>=.12){const bp=ballPx();
@@ -70,11 +73,14 @@ function liveMove(e){
 /* Live+: the kick fires at the end of the flick (finger lifts, nearly stops, or 0.4 s after leaving the ring), so the
    whole swipe is known: its peak speed decides kick vs dribble, its highest point decides where the ball goes (kickPlus). */
 function firePlus(d){const g=d.go;d.go=null;if(!cur||won)return;kickLive(ballPx(),{x:d.topX,y:d.top},d,g.pk)}
-/* Swipe velocity in px/s over the last ~100 ms of the drag. */
+/* Swipe velocity in px/s over the last ~100 ms of *movement*. A moving finger or mouse reports every frame (8-17 ms), so a
+   longer gap between two points means it was resting (press, hold, then flick): that gap counts as one frame at most
+   (25 ms), not its full length, and the measure stops there (the flick started after the rest; tiny finger tremor during
+   a hold is not part of it). Otherwise a hold before the flick was divided into the flick and made it far too weak. */
 function swipeVel(d){
-  const p=d.pts,e=p[p.length-1];let a=e;
-  for(let i=p.length-1;i>=0;i--){a=p[i];if(e.t-a.t>100)break}
-  const dt=Math.max(.016,(e.t-a.t)/1000);return{x:(e.x-a.x)/dt,y:(e.y-a.y)/dt};
+  const p=d.pts,e=p[p.length-1];let i=p.length-1,ms=0;
+  while(i>0&&ms<100){const g=p[i].t-p[i-1].t;ms+=Math.min(g,25);i--;if(g>40)break}
+  const a=p[i],dt=Math.max(.016,ms/1000);return{x:(e.x-a.x)/dt,y:(e.y-a.y)/dt};
 }
 /* Live kick: swipe speed sets power, swipe direction sets heading, then gravity takes over.
    Forward speed is scaled by D/13 so flight time and arc height match on every screen shape.
@@ -87,10 +93,17 @@ function kickLive(bp,pt,d,pk){
   const plus=S.mode==='livep';
   if(plus){kickPlus(b,bp,pt,spd);balls.push(b);d.steer=b;kickFx(b);return}
   let dx=sv.x,dy=sv.y;if(plus||spd<.2||dy>-1){dx=pt.x-bp.x;dy=pt.y-bp.y}
+  /* Thumb arcs: a swipe meant straight comes out curved (right thumb leans right, left thumb left), and the curve's end
+     leans about twice as much as its overall line. So the heading blends the end direction with the whole swipe's line
+     (ball -> where it crossed the ring) by S.chord, then a small straight zone: within ±S.straight degrees of straight up
+     counts as straight, easing back to the true angle by twice that (no jump; wide aims are untouched). */
+  {let a=Math.atan2(dx,-dy);const c=Math.atan2(pt.x-bp.x,-(pt.y-bp.y));a=lerp(a,c,S.chord);
+   const z=S.straight*Math.PI/180,m=Math.abs(a);if(z>0)a=Math.sign(a)*(m<z?0:m<2*z?(m-z)*2:m);
+   const l=Math.hypot(dx,dy)||1;dx=Math.sin(a)*l;dy=-Math.cos(a)*l}
   const rowY=toScreen(0,2.8*ak(),ZF)[1],k=(bp.y-rowY)/Math.max(1,-dy);
   let xw=0;ndc.set((bp.x+dx*k)/W_*2-1,1-rowY/H_*2);ray.setFromCamera(ndc,camera);if(ray.ray.intersectPlane(plane,hitV))xw=clamp(hitV.x,-16*ak(),16*ak());
   const q=Math.sqrt(ak()),tF=13*q/P; /* tF: time to reach the wall */
-  b.P=P*q;b.lift=0;b.plus=false;b.vn=P*S.loft*q;b.baseY=bp.y;b.topY=Math.min(d.top,pt.y+Math.min(0,sv.y)*.08);
+  b.kickT=pt.t||performance.now();b.P=P*q;b.lift=0;b.plus=false;b.vn=P*S.loft*q;b.baseY=bp.y;b.topY=Math.min(d.top,pt.y+Math.min(0,sv.y)*.08);
   b.v.set((xw-b.p.x)/tF,b.vn,-D/tF);b.a.set(0,-S.gravity,0); /* sideways from the ball's own spot to the aimed wall point */
   balls.push(b);d.steer=b;kickFx(b);
 }
